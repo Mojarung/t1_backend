@@ -1,0 +1,21 @@
+__pycache__/
+.venv/
+env/
+*.sqlite3
+*.db
+*.pyc
+.ipynb_checkpoints/
+.idea/
+.vscode/
+venv/
+uploads/
+.env
+# SSH keys and sensitive files
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+*.pub
+seqwe
+seqwe.pub
+vtb_mortech_backend.rar

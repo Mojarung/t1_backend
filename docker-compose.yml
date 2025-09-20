@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_HOST=94.228.113.42
+      - DATABASE_NAME=mortech
+      - DATABASE_USER=admin_1
+      - DATABASE_PASSWORD=jopabobra
+      - SECRET_KEY=your-secret-key-here-change-in-production
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60
+      - UPLOAD_DIR=uploads
+      - AGENT_ID=7e7605da-7f02-4c74-8fa1-31c95dcbbab2
+      - API_KEY=your_api_key_here
+      - BASE_URL=https://agent.timeweb.cloud
+    depends_on:
+      db-check:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Настройки логирования
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=vtb-backend"
+
+  db-check:
+    image: postgres:15
+    command: >
+      sh -c "
+        until pg_isready -h 94.228.113.42 -p 5432 -U admin_1; do
+          echo 'Waiting for database...';
+          sleep 2;
+        done;
+        echo 'Database is ready!';
+      "
+    environment:
+      - PGPASSWORD=jopabobra
+    restart: "no"
