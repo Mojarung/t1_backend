@@ -527,3 +527,143 @@ class AssistantStatsResponse(BaseModel):
     recommendations_given: int
     recommendations_completed: int
     favorite_topics: Optional[List[str]] = []  # Самые частые темы вопросов
+
+# ====== HR AI Assistant Schemas ======
+
+class HRCandidateSearchRequest(BaseModel):
+    """
+    Запрос HR AI-ассистента для поиска кандидатов.
+    Используется в чат-интерфейсе для HR-менеджеров.
+    """
+    message: str  # Сообщение от HR (например, "найди Python разработчиков")
+    session_id: Optional[int] = None  # ID сессии чата
+    context: Optional[Dict[str, Any]] = None  # Дополнительный контекст
+
+class HRVacancyGenerationRequest(BaseModel):
+    """
+    Запрос на генерацию описания вакансии HR AI-ассистентом.
+    """
+    position: str  # Название позиции
+    requirements: Optional[str] = None  # Требования к кандидату
+    level: Optional[str] = None  # junior, middle, senior
+    additional_info: Optional[str] = None  # Дополнительная информация
+    session_id: Optional[int] = None
+
+class HRAnalyticsRequest(BaseModel):
+    """
+    Запрос аналитики по кандидатам для HR.
+    """
+    period_days: Optional[int] = 30  # Период для анализа в днях
+    filters: Optional[Dict[str, Any]] = None  # Фильтры для анализа
+    session_id: Optional[int] = None
+
+class HRCandidateCard(BaseModel):
+    """
+    Карточка кандидата для отображения в HR интерфейсе.
+    Расширенная версия CandidateMatch с дополнительной информацией.
+    """
+    user_id: int
+    full_name: str
+    email: str
+    current_position: Optional[str] = None
+    experience_years: Optional[str] = None
+    location: Optional[str] = None
+    about: Optional[str] = None
+    
+    # Навыки и технологии
+    key_skills: List[str] = []
+    programming_languages: List[str] = []
+    other_competencies: List[str] = []
+    
+    # Образование и опыт
+    education: Optional[List[Dict[str, Any]]] = []
+    work_experience: Optional[List[Dict[str, Any]]] = []
+    
+    # AI анализ
+    match_score: float
+    similarity_score: Optional[float] = None
+    ai_summary: Optional[str] = None
+    strengths: List[str] = []
+    growth_areas: List[str] = []
+    
+    # Рекомендации для HR
+    hr_notes: Optional[str] = None  # Заметки HR
+    contact_priority: Optional[int] = None  # Приоритет контакта (1-5)
+    fit_assessment: Optional[str] = None  # Общая оценка соответствия
+
+class HRAnalyticsResponse(BaseModel):
+    """
+    Ответ с HR аналитикой по кандидатам.
+    """
+    total_candidates: int
+    filled_profiles: int
+    profile_completion_rate: float
+    
+    # Топ навыки и технологии
+    top_skills: List[str] = []
+    top_programming_languages: List[str] = []
+    
+    # Распределение по уровням
+    experience_distribution: Dict[str, int] = {}
+    
+    # Географическое распределение
+    location_distribution: Optional[Dict[str, int]] = {}
+    
+    # Зарплатные ожидания
+    salary_statistics: Optional[Dict[str, Any]] = {}
+    
+    # Рекомендации и инсайты
+    recommendations: List[str] = []
+    insights: List[str] = []
+
+class HRVacancyGenerationResponse(BaseModel):
+    """
+    Ответ с сгенерированным описанием вакансии.
+    """
+    generated_description: str
+    structured_data: Optional[Dict[str, Any]] = None  # Структурированные данные
+    suggestions: List[str] = []  # Предложения по улучшению
+    recommended_skills: List[str] = []  # Рекомендуемые навыки
+    salary_recommendations: Optional[Dict[str, Any]] = None  # Рекомендации по зарплате
+    market_insights: Optional[str] = None  # Инсайты рынка труда
+
+class HRAssistantChatResponse(BaseModel):
+    """
+    Ответ HR AI-ассистента с расширенными данными для HR.
+    """
+    session_id: int
+    message_id: int
+    response: str
+    
+    # HR-специфичные данные
+    candidates_data: Optional[List[HRCandidateCard]] = []  # Карточки кандидатов
+    analytics_data: Optional[HRAnalyticsResponse] = None  # Аналитические данные
+    vacancy_data: Optional[HRVacancyGenerationResponse] = None  # Данные вакансии
+    
+    # Стандартные поля ассистента
+    recommendations: Optional[List[RecommendationResponse]] = []
+    actions: Optional[List[Dict[str, Any]]] = []
+    quick_replies: Optional[List[str]] = []
+    
+    response_type: str = "general"  # general, candidate_search, analytics, vacancy_generation
+    confidence: Optional[float] = None
+
+class HRAssistantStatsResponse(BaseModel):
+    """
+    Статистика работы HR AI-ассистента.
+    """
+    total_sessions: int
+    total_messages: int
+    
+    # HR-специфичная статистика
+    candidates_searched: int  # Количество поисков кандидатов
+    vacancies_generated: int  # Количество сгенерированных вакансий
+    analytics_requests: int  # Количество запросов аналитики
+    
+    # Популярные запросы
+    top_search_queries: Optional[List[str]] = []
+    top_skills_searched: Optional[List[str]] = []
+    
+    # Эффективность
+    average_candidates_per_search: Optional[float] = None
+    successful_searches_percentage: Optional[float] = None
