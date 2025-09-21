@@ -138,25 +138,66 @@ class HRCandidateSearchService:
         )
 
         # Фильтр по навыкам программирования
-        if required_skills:
+        if required_skills and len(required_skills) > 0:
             skill_conditions = []
             for skill in required_skills:
-                # Ищем в языках программирования
-                skill_conditions.append(
-                    func.json_extract_path_text(User.programming_languages, '$').ilike(f'%{skill}%')
-                )
-                # Ищем в прочих компетенциях
-                skill_conditions.append(
-                    func.json_extract_path_text(User.other_competencies, '$').ilike(f'%{skill}%')
-                )
+                skill = skill.strip()
+                if skill:  # Проверяем, что навык не пустой
+                    # Ищем в языках программирования (учитываем что это JSON array)
+                    skill_conditions.append(
+                        User.programming_languages.ilike(f'%{skill}%')
+                    )
+                    # Ищем в прочих компетенциях (тоже JSON array)  
+                    skill_conditions.append(
+                        User.other_competencies.ilike(f'%{skill}%')
+                    )
+                    # Ищем в описании "о себе"
+                    skill_conditions.append(
+                        User.about.ilike(f'%{skill}%')
+                    )
             
-            # Хотя бы один навык должен совпадать
-            query = query.filter(or_(*skill_conditions))
+            if skill_conditions:
+                # Хотя бы один навык должен совпадать
+                query = query.filter(or_(*skill_conditions))
 
         # Фильтр по уровню опыта (опционально)
         if experience_level and experience_level.lower() in ['junior', 'middle', 'senior']:
-            # Можно добавить логику анализа опыта работы из JSON поля work_experience
-            pass
+            # Ищем упоминания уровня в опыте работы или описании
+            experience_conditions = []
+            exp_level = experience_level.lower()
+            
+            # Ищем в JSON опыта работы
+            experience_conditions.append(
+                User.work_experience.ilike(f'%{exp_level}%')
+            )
+            # Ищем в описании "о себе"
+            experience_conditions.append(
+                User.about.ilike(f'%{exp_level}%')
+            )
+            # Ищем конкретные термины по уровню
+            if exp_level == 'senior':
+                experience_conditions.extend([
+                    User.about.ilike('%senior%'),
+                    User.about.ilike('%lead%'),
+                    User.about.ilike('%архитектор%'),
+                    User.work_experience.ilike('%senior%'),
+                    User.work_experience.ilike('%lead%')
+                ])
+            elif exp_level == 'middle':
+                experience_conditions.extend([
+                    User.about.ilike('%middle%'),
+                    User.about.ilike('%средний%'),
+                    User.work_experience.ilike('%middle%')
+                ])
+            elif exp_level == 'junior':
+                experience_conditions.extend([
+                    User.about.ilike('%junior%'),
+                    User.about.ilike('%начинающий%'),
+                    User.work_experience.ilike('%junior%')
+                ])
+            
+            if experience_conditions:
+                query = query.filter(or_(*experience_conditions))
 
         return query
 
@@ -165,18 +206,31 @@ class HRCandidateSearchService:
         Применяет дополнительные фильтры, если кандидатов слишком много.
         Фильтрует по ключевым словам в описании опыта работы и образовании.
         """
-        if additional_keywords:
+        if additional_keywords and len(additional_keywords) > 0:
             additional_conditions = []
             for keyword in additional_keywords:
-                # Ищем в опыте работы
-                additional_conditions.append(
-                    func.json_extract_path_text(User.work_experience, '$').ilike(f'%{keyword}%')
-                )
-                # Ищем в описании "о себе"
-                additional_conditions.append(User.about.ilike(f'%{keyword}%'))
+                keyword = keyword.strip()
+                if keyword:  # Проверяем, что ключевое слово не пустое
+                    # Ищем в опыте работы (JSON поле)
+                    additional_conditions.append(
+                        User.work_experience.ilike(f'%{keyword}%')
+                    )
+                    # Ищем в образовании (JSON поле)
+                    additional_conditions.append(
+                        User.education.ilike(f'%{keyword}%')
+                    )
+                    # Ищем в описании "о себе"
+                    additional_conditions.append(
+                        User.about.ilike(f'%{keyword}%')
+                    )
+                    # Ищем в прочих компетенциях
+                    additional_conditions.append(
+                        User.other_competencies.ilike(f'%{keyword}%')
+                    )
             
-            # Хотя бы одно дополнительное условие должно выполняться
-            query = query.filter(or_(*additional_conditions))
+            if additional_conditions:
+                # Хотя бы одно дополнительное условие должно выполняться
+                query = query.filter(or_(*additional_conditions))
 
         return query
 
@@ -184,6 +238,7 @@ class HRCandidateSearchService:
                                    filtered_users: List[User], limit: int = 20) -> List[Tuple[User, float]]:
         """
         Выполняет векторный поиск среди отфильтрованных пользователей.
+        Если векторные профили отсутствуют, создает их на лету.
         Возвращает список кандидатов с их similarity scores.
         """
         user_ids = [user.id for user in filtered_users]
@@ -193,16 +248,156 @@ class HRCandidateSearchService:
             Vec_profile.user_id.in_(user_ids)
         ).all()
 
-        candidates_with_similarity = []
+        print(f"🔍 Found {len(vector_results)} users with existing vector profiles")
         
+        candidates_with_similarity = []
+        users_with_vectors = set()
+        
+        # Обрабатываем пользователей с существующими векторными профилями
         for vec_profile, user in vector_results:
-            # Вычисляем косинусное сходство
             similarity = self._cosine_similarity(job_embedding, vec_profile.vector)
             candidates_with_similarity.append((user, similarity))
+            users_with_vectors.add(user.id)
+            print(f"📊 User {user.id} ({user.full_name or user.username}): similarity = {similarity:.3f}")
+
+        # Для пользователей без векторных профилей создаем профили на лету
+        users_without_vectors = [user for user in filtered_users if user.id not in users_with_vectors]
+        
+        if users_without_vectors:
+            print(f"🔄 Creating vector profiles for {len(users_without_vectors)} users...")
+            for user in users_without_vectors:
+                try:
+                    # Создаем векторный профиль на лету
+                    user_profile_text = self._create_user_profile_text(user)
+                    user_embedding = await self._call_llm(user_profile_text, is_embedding=True)
+                    
+                    # Сохраняем векторный профиль в базу
+                    vec_profile = Vec_profile(
+                        user_id=user.id,
+                        vector=user_embedding
+                    )
+                    db.add(vec_profile)
+                    
+                    # Вычисляем similarity
+                    similarity = self._cosine_similarity(job_embedding, user_embedding)
+                    candidates_with_similarity.append((user, similarity))
+                    print(f"✅ Created vector profile for user {user.id}: similarity = {similarity:.3f}")
+                    
+                except Exception as e:
+                    print(f"❌ Failed to create vector profile for user {user.id}: {e}")
+                    # Добавляем с базовой оценкой
+                    candidates_with_similarity.append((user, 0.5))
+            
+            # Сохраняем изменения в базе данных
+            try:
+                db.commit()
+                print(f"✅ Saved {len(users_without_vectors)} new vector profiles")
+            except Exception as e:
+                db.rollback()
+                print(f"❌ Failed to save vector profiles: {e}")
 
         # Сортируем по убыванию сходства и ограничиваем количество
         candidates_with_similarity.sort(key=lambda x: x[1], reverse=True)
         return candidates_with_similarity[:limit]
+
+    def _create_user_profile_text(self, user: User) -> str:
+        """
+        Создает текстовое представление профиля пользователя для векторизации
+        """
+        profile_parts = []
+        
+        # Основная информация
+        if user.full_name:
+            profile_parts.append(f"Имя: {user.full_name}")
+        
+        # О себе
+        if user.about:
+            profile_parts.append(f"О себе: {user.about}")
+        
+        # Языки программирования
+        if user.programming_languages:
+            languages = ', '.join(user.programming_languages) if isinstance(user.programming_languages, list) else str(user.programming_languages)
+            profile_parts.append(f"Языки программирования: {languages}")
+        
+        # Прочие компетенции
+        if user.other_competencies:
+            competencies = ', '.join(user.other_competencies) if isinstance(user.other_competencies, list) else str(user.other_competencies)
+            profile_parts.append(f"Навыки и компетенции: {competencies}")
+        
+        # Опыт работы
+        if user.work_experience and isinstance(user.work_experience, list):
+            for i, exp in enumerate(user.work_experience[:3], 1):  # Берем первые 3 позиции
+                if isinstance(exp, dict):
+                    role = exp.get('role') or exp.get('position', '')
+                    company = exp.get('company', '')
+                    responsibilities = exp.get('responsibilities', '')
+                    
+                    exp_text = f"Опыт работы {i}: {role}"
+                    if company:
+                        exp_text += f" в {company}"
+                    if responsibilities:
+                        exp_text += f". Обязанности: {responsibilities[:200]}..."  # Обрезаем для краткости
+                    
+                    profile_parts.append(exp_text)
+        
+        # Образование
+        if user.education and isinstance(user.education, list):
+            for i, edu in enumerate(user.education[:2], 1):  # Берем первые 2 записи об образовании
+                if isinstance(edu, dict):
+                    institution = edu.get('institution', '')
+                    degree = edu.get('degree', '')
+                    field = edu.get('field_of_study', '') or edu.get('specialty', '')
+                    
+                    edu_text = f"Образование {i}:"
+                    if degree:
+                        edu_text += f" {degree}"
+                    if field:
+                        edu_text += f" по специальности {field}"
+                    if institution:
+                        edu_text += f", {institution}"
+                    
+                    profile_parts.append(edu_text)
+        
+        # Локация
+        if user.location:
+            profile_parts.append(f"Местоположение: {user.location}")
+        
+        # Готовность к переезду
+        if user.ready_to_relocate:
+            profile_parts.append("Готов к переезду")
+        
+        # Тип занятости
+        if user.employment_type:
+            profile_parts.append(f"Предпочитаемый тип занятости: {user.employment_type.value}")
+        
+        # Желаемая зарплата
+        if user.desired_salary:
+            profile_parts.append(f"Желаемая зарплата: {user.desired_salary}")
+        
+        # Иностранные языки
+        if user.foreign_languages and isinstance(user.foreign_languages, list):
+            languages = []
+            for lang in user.foreign_languages:
+                if isinstance(lang, dict):
+                    lang_name = lang.get('language', '')
+                    level = lang.get('level', '')
+                    if lang_name:
+                        lang_text = lang_name
+                        if level:
+                            lang_text += f" ({level})"
+                        languages.append(lang_text)
+            
+            if languages:
+                profile_parts.append(f"Иностранные языки: {', '.join(languages)}")
+        
+        # Собираем все части в единый текст
+        profile_text = '. '.join(filter(None, profile_parts))
+        
+        # Если профиль пустой, создаем минимальное описание
+        if not profile_text.strip():
+            profile_text = f"Пользователь {user.username or user.email}, профиль не заполнен"
+        
+        return profile_text
 
     def _cosine_similarity(self, vec1: List[float], vec2) -> float:
         """

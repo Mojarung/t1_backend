@@ -205,15 +205,6 @@ class WorkExperience(Base):
     
     user = relationship("User")
 
-class Vec_profile(Base):
-    __tablename__ = "vec_profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    vector = mapped_column(Vector(1024))
-    
-    user = relationship("User")
-
 class QASession(Base):
     __tablename__ = "qa_sessions"
     
@@ -227,4 +218,18 @@ class QASession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    user = relationship("User")
+
+class Vec_profile(Base):
+    """
+    Векторные профили пользователей для семантического поиска.
+    Хранит embedding представления профилей для AI-поиска кандидатов.
+    """
+    __tablename__ = "vec_profiles"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    vector = mapped_column(Vector(1024))  # bge-m3 embeddings (1024 измерения)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     user = relationship("User")
