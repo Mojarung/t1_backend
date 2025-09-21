@@ -23,7 +23,7 @@ from app.schemas import (
     AssistantChatRequest, AssistantChatResponse, ChatMessageResponse,
     RecommendationResponse, ChatSessionResponse
 )
-from app import settings
+from app.config import settings
 from app.services.hr_candidate_search_service import get_hr_candidate_search_service
 
 logger = logging.getLogger(__name__)
