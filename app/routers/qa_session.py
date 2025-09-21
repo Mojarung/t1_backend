@@ -272,17 +272,6 @@ async def apply_profile_updates(user: User, updates: dict, db: Session):
                     except ValueError:
                         print(f"Неверный формат даты: {value}")
                         continue
-                elif field in ["programming_languages", "other_competencies", "foreign_languages"]:
-                    # Обрабатываем поля, которые должны быть списками
-                    if isinstance(value, str):
-                        # Если это строка, разделяем по запятым и очищаем
-                        list_value = [item.strip() for item in value.split(',') if item.strip()]
-                        setattr(user, field, list_value)
-                    elif isinstance(value, list):
-                        setattr(user, field, value)
-                    else:
-                        print(f"Неверный тип для поля {field}: {type(value)}")
-                        continue
                 else:
                     setattr(user, field, value)
         

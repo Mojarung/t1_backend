@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     scibox_base_url: str | None = Field("http://176.119.5.23:4000/v1", validation_alias="SCIBOX_BASE_URL")
     scibox_model: str | None = Field("Qwen2.5-72B-Instruct-AWQ", validation_alias="SCIBOX_MODEL")
     heroku_ai_model: str | None = Field(None, validation_alias="INFERENCE_MODEL_ID")
-
+    scibox_embeddings_api_key: str | None = Field("sk-qyu9jfUQ5rpT5RqfjyEjlg", validation_alias="SCIBOX_EMBEDDINGS_API_KEY")
+    scibox_embeddings_base_url: str | None = Field("http://176.119.5.23:4000/v1", validation_alias="SCIBOX_EMBEDDINGS_BASE_URL")
     # S3 (AWS-совместимое) хранилище
     s3_bucket: str | None = Field(None, validation_alias="S3_BUCKET")
     s3_region: str | None = Field(None, validation_alias="AWS_REGION")

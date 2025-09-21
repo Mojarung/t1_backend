@@ -51,8 +51,8 @@ class HRCandidateSearchService:
         )
 
         # Конфигурация для Scibox API
-        base_url = getattr(settings, 'scibox_base_url', 'https://llm.t1v.scibox.tech/v1')
-        api_key = getattr(settings, 'scibox_api_key', 'sk-your-api-key-here')
+        base_url = getattr(settings, 'scibox_embeddings_base_url', 'https://llm.t1v.scibox.tech/v1')
+        api_key = getattr(settings, 'scibox_embeddings_api_key', 'sk-your-api-key-here')
         
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -68,7 +68,7 @@ class HRCandidateSearchService:
             }
         else:
             # Запрос для chat completion
-            url = f"{base_url.rstrip('/')}/chat/completions"
+            url = f"{settings.scibox_base_url.rstrip('/')}/chat/completions"
             payload = {
                 "model": getattr(settings, 'scibox_model', 'Qwen2.5-72B-Instruct-AWQ'),
                 "messages": [
