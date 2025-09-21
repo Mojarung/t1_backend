@@ -41,6 +41,8 @@ class UserResponse(BaseModel):
     # Флаги для отслеживания взаимодействия с резюме
     resume_upload_seen: Optional[bool] = None
     resume_upload_skipped: Optional[bool] = None
+    # XP пользователя
+    xp: Optional[int] = None
 
     @field_validator('programming_languages', 'other_competencies', mode='before')
     @classmethod
@@ -336,3 +338,46 @@ class CandidateSearchResponse(BaseModel):
     filters_applied: List[str]  # Примененные фильтры
     candidates: List[CandidateMatch]  # Список кандидатов, отсортированный по релевантности
     processing_time_seconds: Optional[float] = None  # Время обработки запроса
+
+# XP Schemas - Схемы для системы опыта
+class XPFieldBreakdown(BaseModel):
+    """Детализация XP по конкретному полю профиля"""
+    xp: int
+    filled: bool
+    description: str
+    potential_xp: Optional[int] = None
+    # Для сложных полей (массивов)
+    items_count: Optional[int] = None
+    items_counted: Optional[int] = None
+    base_xp: Optional[int] = None
+    items_xp: Optional[int] = None
+    potential_base_xp: Optional[int] = None
+    potential_per_item: Optional[int] = None
+    max_items: Optional[int] = None
+
+class NextBonus(BaseModel):
+    """Информация о следующем бонусе за заполненность"""
+    threshold: int
+    bonus: int
+    percentage_needed: float
+
+class XPInfoResponse(BaseModel):
+    """Детальная информация о XP пользователя"""
+    user_id: int
+    current_xp: int
+    calculated_xp: int
+    completion_percentage: float
+    filled_fields: int
+    total_fields: int
+    completion_bonus: int
+    base_xp: int
+    next_bonus: Optional[NextBonus]
+    xp_breakdown: Dict[str, XPFieldBreakdown]
+
+class XPUpdateResponse(BaseModel):
+    """Ответ при обновлении XP"""
+    message: str
+    old_xp: int
+    new_xp: int
+    xp_gained: int
+    completion_percentage: float

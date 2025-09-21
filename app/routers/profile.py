@@ -4,7 +4,9 @@ from typing import Optional, Dict, Any
 from app.database import get_db
 from app.models import User, WorkExperience
 from app.auth import get_current_user
+from app.schemas import XPInfoResponse, XPUpdateResponse
 from app.services.async_resume_processor import async_resume_processor
+from app.services.xp_service import xp_service
 from datetime import datetime, date
 import os
 import shutil
@@ -213,8 +215,9 @@ async def update_user_profile(user_id: int, profile_data: Dict[str, Any], db: Se
         if profile_data.get("work_experience"):
             user.work_experience = profile_data["work_experience"]
         
-        # Сохраняем изменения
-        db.commit()
+        # Обновляем XP пользователя
+        xp_info = xp_service.update_user_xp(user, db)
+        print(f"💎 XP пользователя {user_id} обновлен: {xp_info['old_xp']} -> {xp_info['total_xp']} (+{xp_info['xp_gained']})")
         
         print(f"✅ Профиль пользователя {user_id} успешно обновлен")
         
@@ -245,6 +248,7 @@ async def get_user_profile(
         "foreign_languages": current_user.foreign_languages,
         "other_competencies": current_user.other_competencies,
         "programming_languages": current_user.programming_languages,
+        "xp": current_user.xp,
         "created_at": current_user.created_at
     }
 
@@ -283,9 +287,17 @@ async def update_user_profile_manual(
                 else:
                     setattr(current_user, field, value)
         
-        db.commit()
+        # Обновляем XP пользователя
+        xp_info = xp_service.update_user_xp(current_user, db)
         
-        return {"message": "Профиль успешно обновлен"}
+        return {
+            "message": "Профиль успешно обновлен",
+            "xp_info": {
+                "total_xp": xp_info["total_xp"],
+                "xp_gained": xp_info["xp_gained"],
+                "completion_percentage": xp_info["completion_percentage"]
+            }
+        }
         
     except HTTPException:
         raise
@@ -332,4 +344,52 @@ async def mark_resume_upload_skipped(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при обновлении флага: {str(e)}"
+        )
+
+@router.get("/xp", response_model=XPInfoResponse)
+async def get_user_xp_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Получение детальной информации о XP пользователя"""
+    try:
+        xp_info = xp_service.calculate_user_xp(current_user)
+        return {
+            "user_id": current_user.id,
+            "current_xp": current_user.xp,
+            "calculated_xp": xp_info["total_xp"],
+            "completion_percentage": xp_info["completion_percentage"],
+            "filled_fields": xp_info["filled_fields"],
+            "total_fields": xp_info["total_fields"],
+            "completion_bonus": xp_info["completion_bonus"],
+            "base_xp": xp_info["base_xp"],
+            "next_bonus": xp_info["next_bonus"],
+            "xp_breakdown": xp_info["xp_breakdown"]
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при получении информации о XP: {str(e)}"
+        )
+
+@router.post("/xp/recalculate", response_model=XPUpdateResponse)
+async def recalculate_user_xp(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Принудительный пересчет XP пользователя"""
+    try:
+        xp_info = xp_service.update_user_xp(current_user, db)
+        return {
+            "message": "XP успешно пересчитан",
+            "old_xp": xp_info["old_xp"],
+            "new_xp": xp_info["total_xp"],
+            "xp_gained": xp_info["xp_gained"],
+            "completion_percentage": xp_info["completion_percentage"]
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при пересчете XP: {str(e)}"
         )
