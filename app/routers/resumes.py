@@ -11,6 +11,7 @@ from app.auth import get_current_user, get_current_hr_user
 from app.config import settings
 from app.services.resume_processor import process_resume
 from app.services.storage_s3 import get_s3_storage
+from app.services.resume_gap_analysis_service import get_resume_gap_analysis_service
 
 router = APIRouter()
 
@@ -222,3 +223,149 @@ def download_resume(
         filename=resume.original_filename,
         media_type='application/octet-stream'
     )
+
+@router.post("/{resume_id}/start-ai-interview")
+async def start_ai_interview_for_resume(
+    resume_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Запускает AI-интервью для дозаполнения резюме пользователя
+    """
+    # Проверяем, что резюме принадлежит пользователю
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id,
+        Resume.user_id == current_user.id
+    ).first()
+    
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Резюме не найдено"
+        )
+    
+    # Получаем анализ резюме
+    resume_analysis = db.query(ResumeAnalysis).filter(
+        ResumeAnalysis.resume_id == resume_id
+    ).first()
+    
+    # Анализируем пробелы в резюме
+    gap_service = get_resume_gap_analysis_service()
+    gaps_analysis = await gap_service.analyze_resume_gaps(current_user, resume_analysis)
+    
+    # Проверяем, есть ли пробелы для заполнения
+    missing_required_fields = gaps_analysis.get('missing_required_fields', [])
+    if not missing_required_fields and not any(
+        gaps_analysis.get('gaps_analysis', {}).get(category, {}).get('missing_fields') or 
+        gaps_analysis.get('gaps_analysis', {}).get(category, {}).get('incomplete_fields')
+        for category in ['personal_info', 'professional_experience', 'skills', 'education']
+    ):
+        return {
+            "message": "Резюме уже содержит достаточно информации",
+            "suggested_actions": ["Просмотрите и отредактируйте резюме вручную", "Подайте заявку на вакансию"],
+            "gaps_analysis": gaps_analysis
+        }
+    
+    # Генерируем вопросы для интервью
+    interview_questions = await gap_service.generate_interview_questions(gaps_analysis, current_user)
+    
+    # Создаем интервью в базе данных
+    from app.models import Interview, InterviewStatus
+    from datetime import datetime
+    
+    interview = Interview(
+        vacancy_id=resume.vacancy_id,
+        resume_id=resume_id,
+        status=InterviewStatus.NOT_STARTED,
+        scheduled_date=datetime.utcnow(),
+        notes=f"AI-интервью для дозаполнения резюме. Пробелы: {missing_required_fields}"
+    )
+    
+    db.add(interview)
+    db.commit()
+    db.refresh(interview)
+    
+    # Подготавливаем данные для AI аватара
+    interview_context = {
+        "interview_type": "resume_completion",
+        "user_profile": {
+            "id": current_user.id,
+            "name": f"{current_user.first_name or ''} {current_user.last_name or ''}".strip(),
+            "email": current_user.email
+        },
+        "resume_data": {
+            "id": resume.id,
+            "filename": resume.original_filename,
+            "analysis": resume_analysis.model_dump() if resume_analysis else None
+        },
+        "gaps_analysis": gaps_analysis,
+        "interview_questions": interview_questions,
+        "estimated_duration": gaps_analysis.get("interview_plan", {}).get("estimated_duration_minutes", 15)
+    }
+    
+    try:
+        # Запускаем AI аватар сервис
+        from app.routers.ai_resume_interview import start_avatar_interview
+        avatar_response = await start_avatar_interview(interview.id, interview_context)
+        
+        return {
+            "interview_id": interview.id,
+            "avatar_room_url": avatar_response["url"],
+            "avatar_token": avatar_response["token"],
+            "interview_context": interview_context,
+            "message": "AI-интервью запущено успешно",
+            "gaps_analysis": gaps_analysis,
+            "missing_required_fields": missing_required_fields
+        }
+        
+    except Exception as e:
+        # Если не удалось запустить аватар, обновляем статус интервью
+        interview.status = InterviewStatus.COMPLETED
+        interview.summary = f"Ошибка запуска AI-интервью: {str(e)}"
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось запустить AI-интервью: {str(e)}"
+        )
+
+@router.get("/{resume_id}/gaps-analysis")
+async def get_resume_gaps_analysis(
+    resume_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Получает анализ пробелов в резюме пользователя
+    """
+    # Проверяем, что резюме принадлежит пользователю
+    resume = db.query(Resume).filter(
+        Resume.id == resume_id,
+        Resume.user_id == current_user.id
+    ).first()
+    
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Резюме не найдено"
+        )
+    
+    # Получаем анализ резюме
+    resume_analysis = db.query(ResumeAnalysis).filter(
+        ResumeAnalysis.resume_id == resume_id
+    ).first()
+    
+    # Анализируем пробелы в резюме
+    gap_service = get_resume_gap_analysis_service()
+    gaps_analysis = await gap_service.analyze_resume_gaps(current_user, resume_analysis)
+    
+    return {
+        "resume_id": resume_id,
+        "gaps_analysis": gaps_analysis,
+        "recommendations": {
+            "needs_interview": bool(gaps_analysis.get('missing_required_fields', [])),
+            "priority_areas": gaps_analysis.get('interview_plan', {}).get('focus_areas', []),
+            "estimated_duration": gaps_analysis.get('interview_plan', {}).get('estimated_duration_minutes', 15)
+        }
+    }
