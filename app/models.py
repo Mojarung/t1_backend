@@ -237,7 +237,7 @@ class Vec_profile(Base):
     user = relationship("User")
 
 
-'''class DevelopmentRoadmap(Base):
+class DevelopmentRoadmap(Base):
     __tablename__ = "development_roadmaps"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -246,4 +246,4 @@ class Vec_profile(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    user = relationship("User")'''
+    user = relationship("User")
