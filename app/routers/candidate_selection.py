@@ -4,6 +4,8 @@ from app.database import get_db
 from app.models import Interview, Resume, Vacancy, User, ApplicationStatus
 from app.auth import get_current_hr_user
 from app.services.candidate_selection_service import get_candidate_selection_service
+from app.services.hr_candidate_search_service import get_hr_candidate_search_service
+from app.schemas import CandidateSearchRequest, CandidateSearchResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -149,5 +151,57 @@ async def select_best_candidates(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при выборе лучших кандидатов: {str(e)}"
+        )
+
+@router.post("/ai-search", response_model=CandidateSearchResponse)
+async def ai_candidate_search(
+    request: CandidateSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_hr_user)
+):
+    """
+    🤖 AI-поиск кандидатов для HR-менеджера
+    
+    Эндпоинт реализует умный поиск кандидатов с использованием:
+    - Базовой фильтрации по навыкам и опыту
+    - Дополнительной фильтрации при большом количестве кандидатов  
+    - Векторного поиска для семантического соответствия
+    - LLM-анализа каждого кандидата с персонализированным саммари
+    
+    Алгоритм работы:
+    1. HR отправляет описание вакансии и требования
+    2. Система применяет фильтры по навыкам (например, Python для бэкенда)
+    3. Если кандидатов > threshold_filter_limit, добавляются доп. фильтры
+    4. Выполняется векторный поиск по профилям (cosine similarity)
+    5. LLM анализирует топ-кандидатов и генерирует развернутые саммари
+    6. Возвращается ранжированный список с оценками и рекомендациями
+    
+    Примеры использования:
+    - "Ищу Senior Python разработчика с опытом в Django"
+    - "Нужен Data Analyst со знанием SQL и Power BI"
+    - "Frontend разработчик на React для стартап проекта"
+    """
+    try:
+        print(f"🔍 AI Candidate Search request from HR user: {current_user.username}")
+        print(f"📋 Job: {request.job_title}")
+        print(f"🎯 Required skills: {request.required_skills}")
+        print(f"⚙️ Max candidates for AI processing: {request.max_candidates}")
+        
+        # Получаем сервис для поиска кандидатов
+        search_service = get_hr_candidate_search_service()
+        
+        # Выполняем поиск кандидатов
+        search_result = await search_service.search_candidates(db, request)
+        
+        print(f"✅ Search completed: {search_result.processed_by_ai} candidates analyzed")
+        print(f"⏱️ Processing time: {search_result.processing_time_seconds}s")
+        
+        return search_result
+        
+    except Exception as e:
+        print(f"❌ AI candidate search error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при поиске кандидатов через AI: {str(e)}"
         )
 
