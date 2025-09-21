@@ -23,11 +23,10 @@ from app.schemas import (
     AssistantChatRequest, AssistantChatResponse, ChatMessageResponse,
     RecommendationResponse, ChatSessionResponse
 )
-from app.config import get_settings
+from app import settings
 from app.services.hr_candidate_search_service import get_hr_candidate_search_service
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 class HRAIAssistantService:
