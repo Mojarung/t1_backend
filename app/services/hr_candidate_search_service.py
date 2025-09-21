@@ -10,7 +10,7 @@ import time
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, String
 
 from app.config import settings
 from app.models import User, Vec_profile, UserRole
@@ -143,15 +143,15 @@ class HRCandidateSearchService:
             for skill in required_skills:
                 skill = skill.strip()
                 if skill:  # Проверяем, что навык не пустой
-                    # Ищем в языках программирования (учитываем что это JSON array)
+                    # Ищем в языках программирования (JSON -> текст)
                     skill_conditions.append(
-                        User.programming_languages.ilike(f'%{skill}%')
+                        User.programming_languages.cast(String).ilike(f'%{skill}%')
                     )
-                    # Ищем в прочих компетенциях (тоже JSON array)  
+                    # Ищем в прочих компетенциях (JSON -> текст)  
                     skill_conditions.append(
-                        User.other_competencies.ilike(f'%{skill}%')
+                        User.other_competencies.cast(String).ilike(f'%{skill}%')
                     )
-                    # Ищем в описании "о себе"
+                    # Ищем в описании "о себе" (обычный текст)
                     skill_conditions.append(
                         User.about.ilike(f'%{skill}%')
                     )
@@ -166,11 +166,11 @@ class HRCandidateSearchService:
             experience_conditions = []
             exp_level = experience_level.lower()
             
-            # Ищем в JSON опыта работы
+            # Ищем в JSON опыта работы (приводим к тексту)
             experience_conditions.append(
-                User.work_experience.ilike(f'%{exp_level}%')
+                User.work_experience.cast(String).ilike(f'%{exp_level}%')
             )
-            # Ищем в описании "о себе"
+            # Ищем в описании "о себе" (обычный текст)
             experience_conditions.append(
                 User.about.ilike(f'%{exp_level}%')
             )
@@ -180,20 +180,20 @@ class HRCandidateSearchService:
                     User.about.ilike('%senior%'),
                     User.about.ilike('%lead%'),
                     User.about.ilike('%архитектор%'),
-                    User.work_experience.ilike('%senior%'),
-                    User.work_experience.ilike('%lead%')
+                    User.work_experience.cast(String).ilike('%senior%'),
+                    User.work_experience.cast(String).ilike('%lead%')
                 ])
             elif exp_level == 'middle':
                 experience_conditions.extend([
                     User.about.ilike('%middle%'),
                     User.about.ilike('%средний%'),
-                    User.work_experience.ilike('%middle%')
+                    User.work_experience.cast(String).ilike('%middle%')
                 ])
             elif exp_level == 'junior':
                 experience_conditions.extend([
                     User.about.ilike('%junior%'),
                     User.about.ilike('%начинающий%'),
-                    User.work_experience.ilike('%junior%')
+                    User.work_experience.cast(String).ilike('%junior%')
                 ])
             
             if experience_conditions:
@@ -211,21 +211,21 @@ class HRCandidateSearchService:
             for keyword in additional_keywords:
                 keyword = keyword.strip()
                 if keyword:  # Проверяем, что ключевое слово не пустое
-                    # Ищем в опыте работы (JSON поле)
+                    # Ищем в опыте работы (JSON поле -> текст)
                     additional_conditions.append(
-                        User.work_experience.ilike(f'%{keyword}%')
+                        User.work_experience.cast(String).ilike(f'%{keyword}%')
                     )
-                    # Ищем в образовании (JSON поле)
+                    # Ищем в образовании (JSON поле -> текст)
                     additional_conditions.append(
-                        User.education.ilike(f'%{keyword}%')
+                        User.education.cast(String).ilike(f'%{keyword}%')
                     )
-                    # Ищем в описании "о себе"
+                    # Ищем в описании "о себе" (обычный текст)
                     additional_conditions.append(
                         User.about.ilike(f'%{keyword}%')
                     )
-                    # Ищем в прочих компетенциях
+                    # Ищем в прочих компетенциях (JSON поле -> текст)
                     additional_conditions.append(
-                        User.other_competencies.ilike(f'%{keyword}%')
+                        User.other_competencies.cast(String).ilike(f'%{keyword}%')
                     )
             
             if additional_conditions:
