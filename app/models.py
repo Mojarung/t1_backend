@@ -206,15 +206,6 @@ class WorkExperience(Base):
     
     user = relationship("User")
 
-class Vec_profile(Base):
-    __tablename__ = "vec_profiles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    vector = mapped_column(Vector(1024))
-    
-    user = relationship("User")
-
 class QASession(Base):
     __tablename__ = "qa_sessions"
     
