@@ -7,6 +7,7 @@ from app.auth import get_current_user
 from app.schemas import XPInfoResponse, XPUpdateResponse
 from app.services.async_resume_processor import async_resume_processor
 from app.services.xp_service import xp_service
+from app.services.roadmap_service import get_roadmap_service
 from datetime import datetime, date
 import os
 import shutil
@@ -393,3 +394,30 @@ async def recalculate_user_xp(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при пересчете XP: {str(e)}"
         )
+
+'''@router.post("/roadmap/generate")
+async def generate_development_roadmap(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Генерация игровой карты развития (роадмапа) на основе профиля. Требуется заполненность 60%+."""
+    try:
+        service = get_roadmap_service()
+        roadmap = await service.generate_for_user(db, current_user)
+        return {"roadmap": roadmap}
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Ошибка генерации роадмапа: {e}")
+
+@router.get("/roadmap")
+async def get_development_roadmap(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Получение сохраненной карты развития пользователя."""
+    service = get_roadmap_service()
+    roadmap = service.get_for_user(db, current_user)
+    if not roadmap:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Роадмап не найден. Сгенерируйте его сначала.")
+    return {"roadmap": roadmap}'''
