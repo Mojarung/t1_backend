@@ -3,7 +3,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
+from dotenv import load_dotenv
 from app.config import settings
+
+# Загружаем переменные окружения из .env файла
+load_dotenv()
 
 # Собираем URL для БД: приоритет — переменная окружения (например, Heroku DATABASE_URL)
 def _build_database_url() -> str:
@@ -12,7 +16,8 @@ def _build_database_url() -> str:
 
     if not url:
         # 2) Падение назад на конфиг проекта
-        encoded_password = quote_plus(settings.database_password)
+        password = settings.database_password or ""
+        encoded_password = quote_plus(password)
         url = (
             f"postgresql://{settings.database_user}:{encoded_password}"
             f"@{settings.database_host}/{settings.database_name}"
@@ -32,9 +37,9 @@ def _build_database_url() -> str:
 
 DATABASE_URL = _build_database_url()
 
-# Если на Heroku (есть переменная DYNO), принудительно включаем SSL
+# Если на Heroku (есть переменная DYNO) или используем внешнюю БД, принудительно включаем SSL
 connect_args = {}
-if os.getenv("DYNO"):
+if os.getenv("DYNO") or "rds.amazonaws.com" in DATABASE_URL:
     connect_args = {"sslmode": "require"}
 
 engine = create_engine(

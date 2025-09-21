@@ -16,7 +16,7 @@ class ResumeAnalysisService:
 
     def __init__(self):
         # Конфиг читаем из settings
-        self.provider = ("heroku").lower()
+        self.provider = ("scibox").lower()
 
     def _build_request(self, prompt: str) -> tuple[str, Dict[str, str], Dict[str, Any]]:
         """Собирает URL, заголовки и payload под выбранного провайдера."""
@@ -24,10 +24,20 @@ class ResumeAnalysisService:
             "Ты профессиональный HR-аналитик. Анализируй резюме максимально точно и объективно."
         )
 
-        # Heroku AI Inference (OpenAI-совместимый)
-        url = settings.heroku_ai_base_url or ""
-        api_key = settings.heroku_ai_api_key or ""
-        model = settings.heroku_ai_model or "gpt-4o-mini"
+        if self.provider == "scibox":
+            # SciBox LLM Service
+            url = settings.scibox_base_url or "http://176.119.5.23:4000/v1"
+            api_key = settings.scibox_api_key or "sk-qyu9jfUQ5rpT5RqfjyEjlg"
+            model = settings.scibox_model or "Qwen2.5-72B-Instruct-AWQ"
+            
+            # Добавляем /chat/completions к базовому URL
+            if not url.endswith("/chat/completions"):
+                url = url.rstrip("/") + "/chat/completions"
+        else:
+            # Heroku AI Inference (OpenAI-совместимый) - fallback
+            url = settings.heroku_ai_base_url or ""
+            api_key = settings.heroku_ai_api_key or ""
+            model = settings.heroku_ai_model or "gpt-4o-mini"
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -40,6 +50,8 @@ class ResumeAnalysisService:
                 {"role": "user", "content": prompt},
             ],
             "max_tokens": 6000,
+            "temperature": 0.7,
+            "top_p": 0.9,
         }
         return url, headers, payload
 
@@ -217,6 +229,94 @@ class ResumeAnalysisService:
         }
         
         return result
+
+    async def analyze_resume_for_profile(self, resume_text: str) -> Dict[str, Any]:
+        """
+        Специальный анализ резюме для автоматического заполнения профиля пользователя
+        """
+        
+        prompt = (
+            "Проанализируй резюме и извлеки данные для автоматического заполнения профиля пользователя. "
+            "Верни результат СТРОГО в JSON формате без дополнительного текста.\n\n"
+            f"**РЕЗЮМЕ:**\n{resume_text}\n\n"
+            "Верни результат в следующем JSON формате:\n"
+            "{\n"
+            "  \"personal_info\": {\n"
+            "    \"first_name\": \"Имя или null\",\n"
+            "    \"last_name\": \"Фамилия или null\",\n"
+            "    \"phone\": \"Телефон или null\",\n"
+            "    \"location\": \"Город проживания или null\",\n"
+            "    \"about\": \"Краткое описание о себе или null\"\n"
+            "  },\n"
+            "  \"professional_info\": {\n"
+            "    \"desired_salary\": 0,\n"
+            "    \"employment_type\": \"full_time\",\n"
+            "    \"ready_to_relocate\": false\n"
+            "  },\n"
+            "  \"skills\": {\n"
+            "    \"programming_languages\": [\"Python\", \"JavaScript\"],\n"
+            "    \"foreign_languages\": [\n"
+            "      {\"language\": \"English\", \"level\": \"Intermediate\"}\n"
+            "    ],\n"
+            "    \"other_competencies\": [\"Git\", \"Docker\"]\n"
+            "  },\n"
+            "  \"experience\": [\n"
+            "    {\n"
+            "      \"role\": \"Должность\",\n"
+            "      \"company\": \"Компания\",\n"
+            "      \"period_start\": \"2020-01\",\n"
+            "      \"period_end\": \"2023-12\",\n"
+            "      \"responsibilities\": \"Описание обязанностей\",\n"
+            "      \"is_current\": false\n"
+            "    }\n"
+            "  ],\n"
+            "  \"education\": [\n"
+            "    {\n"
+            "      \"institution\": \"Учебное заведение\",\n"
+            "      \"degree\": \"Степень\",\n"
+            "      \"field\": \"Специальность\",\n"
+            "      \"year\": \"2020\"\n"
+            "    }\n"
+            "  ]\n"
+            "}\n\n"
+            "ВАЖНО: Отвечай ТОЛЬКО JSON, без дополнительного текста!\n"
+        )
+
+        try:
+            ai_response = await self.call_ai(prompt)
+            
+            # Извлекаем JSON из ответа
+            json_match = re.search(r'\{[\s\S]*\}', ai_response)
+            if json_match:
+                json_str = json_match.group()
+                profile_data = json.loads(json_str)
+            else:
+                profile_data = json.loads(ai_response)
+            
+            return profile_data
+        except Exception as e:
+            print(f"Ошибка анализа резюме для профиля: {e}")
+            return {
+                "personal_info": {
+                    "first_name": None,
+                    "last_name": None,
+                    "phone": None,
+                    "location": None,
+                    "about": None
+                },
+                "professional_info": {
+                    "desired_salary": 0,
+                    "employment_type": "full_time",
+                    "ready_to_relocate": False
+                },
+                "skills": {
+                    "programming_languages": [],
+                    "foreign_languages": [],
+                    "other_competencies": []
+                },
+                "experience": [],
+                "education": []
+            }
 
 # Глобальный экземпляр сервиса (ленивая инициализация)
 resume_analysis_service = None

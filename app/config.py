@@ -3,8 +3,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Не используем .env по умолчанию на проде (Heroku), читаем только окружение
-    model_config = SettingsConfigDict(env_file=None, case_sensitive=False)
+    # Читаем .env файл для локальной разработки, но приоритет у переменных окружения
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
     # Безопасные значения по умолчанию оставлены, секреты и внешние адреса — только из окружения
     secret_key: str = Field("your-secret-key-here-change-in-production", validation_alias="SECRET_KEY", description="JWT secret key")
@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Heroku AI Inference (OpenAI-совместимый Chat Completions)
     heroku_ai_api_key: str | None = Field(None, validation_alias="INFERENCE_KEY")
     heroku_ai_base_url: str | None = Field(None, validation_alias="INFERENCE_URL")
+    
+    # SciBox LLM Service
+    scibox_api_key: str | None = Field("sk-qyu9jfUQ5rpT5RqfjyEjlg", validation_alias="SCIBOX_API_KEY")
+    scibox_base_url: str | None = Field("http://176.119.5.23:4000/v1", validation_alias="SCIBOX_BASE_URL")
+    scibox_model: str | None = Field("Qwen2.5-72B-Instruct-AWQ", validation_alias="SCIBOX_MODEL")
     heroku_ai_model: str | None = Field(None, validation_alias="INFERENCE_MODEL_ID")
 
     # S3 (AWS-совместимое) хранилище

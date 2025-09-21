@@ -65,6 +65,15 @@ class User(Base):
     skills = Column(JSON)  # Навыки (массив строк)
     work_experience = Column(JSON)  # Опыт работы (массив объектов)
     
+    # Новые поля для профиля
+    foreign_languages = Column(JSON)  # Иностранные языки (массив объектов)
+    other_competencies = Column(JSON)  # Прочие компетенции (массив строк)
+    programming_languages = Column(JSON)  # Языки программирования (массив строк)
+    
+    # Флаги для отслеживания взаимодействия с резюме
+    resume_upload_seen = Column(Boolean, default=False)  # Видел страницу загрузки резюме
+    resume_upload_skipped = Column(Boolean, default=False)  # Пропустил загрузку резюме
+    
     vacancies = relationship("Vacancy", back_populates="creator")
     resumes = relationship("Resume", back_populates="user")
 
@@ -177,3 +186,20 @@ class Interview(Base):
     
     vacancy = relationship("Vacancy", back_populates="interviews")
     resume = relationship("Resume", back_populates="interviews")
+
+class WorkExperience(Base):
+    __tablename__ = "work_experiences"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False)  # Роль/Должность
+    period_start = Column(Date)  # Начало работы
+    period_end = Column(Date)  # Конец работы (null если текущая работа)
+    company = Column(String, nullable=False)  # Место работы
+    responsibilities = Column(Text)  # Обязанности
+    is_current = Column(Boolean, default=False)  # Текущая работа
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User")

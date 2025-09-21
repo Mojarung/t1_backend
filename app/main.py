@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, vacancies, resumes, interviews, resume_analysis, analytics, applications, offers, candidate_selection
+from app.routers import auth, vacancies, resumes, interviews, resume_analysis, analytics, applications, offers, candidate_selection, profile
 from app.database import create_tables
 from app.logging_config import logger, log_startup, log_request
 import time
@@ -17,19 +17,21 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="VTB HR Backend", version="1.0.0")
 
-# Универсальная CORS-конфигурация для локальной разработки
+# Универсальная CORS-конфигурация для локальной разработки и продакшна
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Next.js frontend local
         "http://127.0.0.1:3000", # Next.js frontend local
+        "http://localhost:3001",  # Next.js frontend local (альтернативный порт)
+        "http://127.0.0.1:3001", # Next.js frontend local (альтернативный порт)
         "https://moretech-frontend-bb9dc4246c9f.herokuapp.com", # Next.js frontend production
         "http://localhost:8000",  # Backend local
         "http://127.0.0.1:8000",  # Backend local
         "http://localhost", # Localhost testing
         "http://127.0.0.1", # Localhost testing
-        "https://moretech-backend-80a7fa1a3fab.herokuapp.com/" # Backend production (for Swagger UI if needed),
-        "https://moretech-avatar-dd041c6ae94a.herokuapp.com/",
+        "https://moretech-backend-80a7fa1a3fab.herokuapp.com", # Backend production (for Swagger UI if needed)
+        "https://moretech-avatar-dd041c6ae94a.herokuapp.com",
         "https://api.aws.us-east-1.cerebrium.ai/v4/p-d3989137/ai-avatar-service/interview/"
     ],
     allow_credentials=True,
@@ -62,6 +64,7 @@ app.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 app.include_router(applications.router, prefix="/applications", tags=["applications"])
 app.include_router(offers.router, prefix="/offers", tags=["offers"])
 app.include_router(candidate_selection.router, prefix="/candidate-selection", tags=["candidate-selection"])
+app.include_router(profile.router, prefix="/profile", tags=["profile"])
 @app.on_event("startup")
 async def startup_event():
     try:

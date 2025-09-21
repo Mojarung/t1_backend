@@ -35,6 +35,13 @@ class UserResponse(BaseModel):
     education: Optional[List[Dict[str, Any]]] = None
     skills: Optional[List[str]] = None
     work_experience: Optional[List[Dict[str, Any]]] = None
+    # Новые поля для профиля
+    foreign_languages: Optional[List[Dict[str, Any]]] = None
+    other_competencies: Optional[List[str]] = None
+    programming_languages: Optional[List[str]] = None
+    # Флаги для отслеживания взаимодействия с резюме
+    resume_upload_seen: Optional[bool] = None
+    resume_upload_skipped: Optional[bool] = None
 
     class Config:
         from_attributes = True

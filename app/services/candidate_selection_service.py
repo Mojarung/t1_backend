@@ -16,7 +16,7 @@ class CandidateSelectionService:
 
     def __init__(self):
         # Конфиг читаем из settings
-        self.provider = ("heroku").lower()
+        self.provider = ("scibox").lower()
 
     def _build_request(self, prompt: str) -> tuple[str, Dict[str, str], Dict[str, Any]]:
         """Собирает URL, заголовки и payload под выбранного провайдера."""
@@ -26,10 +26,20 @@ class CandidateSelectionService:
             "учитывая результаты интервью, опыт работы и соответствие требованиям вакансии."
         )
 
-        # Heroku AI Inference (OpenAI-совместимый)
-        url = settings.heroku_ai_base_url or ""
-        api_key = settings.heroku_ai_api_key or ""
-        model = settings.heroku_ai_model or "gpt-4o-mini"
+        if self.provider == "scibox":
+            # SciBox LLM Service
+            url = settings.scibox_base_url or "http://176.119.5.23:4000/v1"
+            api_key = settings.scibox_api_key or "sk-qyu9jfUQ5rpT5RqfjyEjlg"
+            model = settings.scibox_model or "Qwen2.5-72B-Instruct-AWQ"
+            
+            # Добавляем /chat/completions к базовому URL
+            if not url.endswith("/chat/completions"):
+                url = url.rstrip("/") + "/chat/completions"
+        else:
+            # Heroku AI Inference (OpenAI-совместимый) - fallback
+            url = settings.heroku_ai_base_url or ""
+            api_key = settings.heroku_ai_api_key or ""
+            model = settings.heroku_ai_model or "gpt-4o-mini"
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -42,6 +52,8 @@ class CandidateSelectionService:
                 {"role": "user", "content": prompt},
             ],
             "max_tokens": 8000,
+            "temperature": 0.7,
+            "top_p": 0.9,
         }
         return url, headers, payload
 
