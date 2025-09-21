@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.database import get_db
 from app.models import Interview, User, Vacancy, Resume, ApplicationStatus, ProcessingStatus
 from app.auth import get_current_user, get_current_hr_user
-from app.schemas import ResumeResponse
+from app.schemas import ResumeResponse, ApplicationCreate
 from app.services.async_resume_processor import async_resume_processor
 from datetime import datetime
 import os
@@ -17,13 +17,12 @@ router = APIRouter()
 @router.post("/apply/{vacancy_id}", response_model=ResumeResponse)
 async def apply_for_vacancy(
     vacancy_id: int,
-    file: UploadFile = File(...),
-    cover_letter: Optional[str] = Form(None),
+    application_data: ApplicationCreate,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Подача заявки на вакансию"""
+    """Подача заявки на вакансию с использованием данных из профиля"""
     
     # Проверяем, что вакансия существует и открыта
     vacancy = db.query(Vacancy).filter(Vacancy.id == vacancy_id).first()
@@ -51,44 +50,28 @@ async def apply_for_vacancy(
             detail="Вы уже подавали заявку на эту вакансию"
         )
     
-    # Создаем директорию для файлов, если её нет
-    upload_dir = "uploads/resumes"
-    os.makedirs(upload_dir, exist_ok=True)
-    
-    # Генерируем уникальное имя файла
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{current_user.id}_{vacancy_id}_{timestamp}_{file.filename}"
-    file_path = os.path.join(upload_dir, filename)
-    
-    # Сохраняем файл
-    try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при сохранении файла: {str(e)}"
-        )
-    
-    # Создаем запись в базе данных
+    # Создаем запись в базе данных без файла
     db_resume = Resume(
         user_id=current_user.id,
         vacancy_id=vacancy_id,
-        file_path=file_path,
-        original_filename=file.filename,
+        file_path="",  # Пустой путь, так как файл не загружается
+        original_filename="profile_data",  # Указываем, что данные из профиля
         status=ApplicationStatus.PENDING,
-        notes=cover_letter,
-        processing_status=ProcessingStatus.PENDING
+        notes=application_data.cover_letter,
+        processing_status=ProcessingStatus.PENDING,
+        processed=True  # Сразу помечаем как обработанное, так как данные уже есть
     )
     
     db.add(db_resume)
     db.commit()
     db.refresh(db_resume)
     
-    # Запускаем асинхронную обработку через BackgroundTasks
+    # Запускаем асинхронную обработку профиля для создания анализа
     background_tasks.add_task(
-        async_resume_processor.process_resume_async, 
-        db_resume.id
+        process_profile_for_application, 
+        db_resume.id,
+        current_user.id,
+        vacancy_id
     )
     
     return db_resume
@@ -434,6 +417,171 @@ async def extract_text_with_ocr(file_path: str) -> Optional[str]:
                     
     except Exception as e:
         print(f"❌ Ошибка при обращении к OCR сервису: {e}")
+        return None
+
+async def process_profile_for_application(resume_id: int, user_id: int, vacancy_id: int):
+    """Обработка профиля пользователя для создания анализа заявки"""
+    try:
+        from app.database import SessionLocal
+        from app.models import ResumeAnalysis, Vacancy
+        
+        db = SessionLocal()
+        try:
+            # Получаем пользователя и вакансию
+            user = db.query(User).filter(User.id == user_id).first()
+            vacancy = db.query(Vacancy).filter(Vacancy.id == vacancy_id).first()
+            
+            if not user or not vacancy:
+                print(f"❌ Пользователь {user_id} или вакансия {vacancy_id} не найдены")
+                return
+            
+            # Формируем текст профиля для анализа
+            profile_text = format_user_profile_for_analysis(user)
+            
+            # Анализируем профиль через AI
+            analysis_result = await analyze_profile_with_ai(profile_text, vacancy.description)
+            
+            if analysis_result:
+                # Создаем запись анализа
+                resume_analysis = ResumeAnalysis(
+                    resume_id=resume_id,
+                    name=f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username,
+                    position=extract_position_from_profile(user),
+                    experience=extract_experience_from_profile(user),
+                    education=extract_education_from_profile(user),
+                    upload_date=datetime.now().strftime("%Y-%m-%d"),
+                    match_score=analysis_result.get("basic_info", {}).get("match_score", "0%"),
+                    key_skills=analysis_result.get("basic_info", {}).get("key_skills", []),
+                    recommendation=analysis_result.get("basic_info", {}).get("recommendation", "Требует дополнительного анализа"),
+                    projects=analysis_result.get("extended_info", {}).get("projects", []),
+                    work_experience=analysis_result.get("extended_info", {}).get("work_experience", []),
+                    technologies=analysis_result.get("extended_info", {}).get("technologies", []),
+                    achievements=analysis_result.get("extended_info", {}).get("achievements", []),
+                    strengths=analysis_result.get("detailed_analysis", {}).get("strengths", []),
+                    weaknesses=analysis_result.get("detailed_analysis", {}).get("weaknesses", []),
+                    missing_skills=analysis_result.get("detailed_analysis", {}).get("missing_skills", []),
+                    brief_reason=analysis_result.get("detailed_analysis", {}).get("analysis_text", ""),
+                    structured=analysis_result.get("resume_quality", {}).get("structured", True),
+                    effort_level=analysis_result.get("resume_quality", {}).get("effort_level", "high"),
+                    suspicious_phrases_found=analysis_result.get("anti_manipulation", {}).get("suspicious_phrases_found", False),
+                    suspicious_examples=analysis_result.get("anti_manipulation", {}).get("examples", [])
+                )
+                
+                db.add(resume_analysis)
+                db.commit()
+                
+                print(f"✅ Анализ профиля для заявки {resume_id} создан")
+            else:
+                print(f"❌ Не удалось создать анализ для заявки {resume_id}")
+                
+        finally:
+            db.close()
+            
+    except Exception as e:
+        print(f"❌ Ошибка при обработке профиля для заявки {resume_id}: {e}")
+
+def format_user_profile_for_analysis(user: User) -> str:
+    """Форматирование профиля пользователя в текст для анализа"""
+    profile_parts = []
+    
+    # Основная информация
+    profile_parts.append("=== ЛИЧНАЯ ИНФОРМАЦИЯ ===")
+    profile_parts.append(f"Имя: {user.first_name or 'Не указано'}")
+    profile_parts.append(f"Фамилия: {user.last_name or 'Не указано'}")
+    profile_parts.append(f"Телефон: {user.phone or 'Не указан'}")
+    profile_parts.append(f"Местоположение: {user.location or 'Не указано'}")
+    profile_parts.append(f"О себе: {user.about or 'Не указано'}")
+    
+    # Профессиональная информация
+    profile_parts.append("\n=== ПРОФЕССИОНАЛЬНАЯ ИНФОРМАЦИЯ ===")
+    profile_parts.append(f"Желаемая зарплата: {user.desired_salary or 'Не указана'}")
+    profile_parts.append(f"Тип занятости: {user.employment_type.value if user.employment_type else 'Не указан'}")
+    profile_parts.append(f"Готов к переезду: {'Да' if user.ready_to_relocate else 'Нет'}")
+    
+    # Навыки
+    if user.skills:
+        profile_parts.append(f"\n=== НАВЫКИ ===")
+        for skill in user.skills:
+            profile_parts.append(f"• {skill}")
+    
+    if user.programming_languages:
+        profile_parts.append(f"\n=== ЯЗЫКИ ПРОГРАММИРОВАНИЯ ===")
+        for lang in user.programming_languages:
+            profile_parts.append(f"• {lang}")
+    
+    if user.foreign_languages:
+        profile_parts.append(f"\n=== ИНОСТРАННЫЕ ЯЗЫКИ ===")
+        for lang in user.foreign_languages:
+            if isinstance(lang, dict):
+                profile_parts.append(f"• {lang.get('language', '')} - {lang.get('level', '')}")
+            else:
+                profile_parts.append(f"• {lang}")
+    
+    if user.other_competencies:
+        profile_parts.append(f"\n=== ДРУГИЕ КОМПЕТЕНЦИИ ===")
+        for comp in user.other_competencies:
+            profile_parts.append(f"• {comp}")
+    
+    # Опыт работы
+    if user.work_experience:
+        profile_parts.append(f"\n=== ОПЫТ РАБОТЫ ===")
+        for exp in user.work_experience:
+            if isinstance(exp, dict):
+                profile_parts.append(f"• {exp.get('position', '')} в {exp.get('company', '')} ({exp.get('period', '')})")
+                if exp.get('description'):
+                    profile_parts.append(f"  {exp.get('description', '')}")
+            else:
+                profile_parts.append(f"• {exp}")
+    
+    # Образование
+    if user.education:
+        profile_parts.append(f"\n=== ОБРАЗОВАНИЕ ===")
+        for edu in user.education:
+            if isinstance(edu, dict):
+                profile_parts.append(f"• {edu.get('degree', '')} по специальности {edu.get('field', '')} в {edu.get('institution', '')} ({edu.get('period', '')})")
+            else:
+                profile_parts.append(f"• {edu}")
+    
+    return "\n".join(profile_parts)
+
+def extract_position_from_profile(user: User) -> str:
+    """Извлечение позиции из профиля пользователя"""
+    if user.work_experience and len(user.work_experience) > 0:
+        latest_exp = user.work_experience[0]  # Предполагаем, что первый элемент - последняя работа
+        if isinstance(latest_exp, dict):
+            return latest_exp.get('position', 'Не указана')
+    return 'Не указана'
+
+def extract_experience_from_profile(user: User) -> str:
+    """Извлечение опыта работы из профиля пользователя"""
+    if user.work_experience:
+        return f"{len(user.work_experience)} позиций"
+    return 'Нет опыта'
+
+def extract_education_from_profile(user: User) -> str:
+    """Извлечение образования из профиля пользователя"""
+    if user.education and len(user.education) > 0:
+        latest_edu = user.education[0]
+        if isinstance(latest_edu, dict):
+            return f"{latest_edu.get('degree', '')} - {latest_edu.get('institution', '')}"
+    return 'Не указано'
+
+async def analyze_profile_with_ai(profile_text: str, job_description: str) -> Optional[dict]:
+    """Анализ профиля через AI"""
+    try:
+        # Импортируем сервис анализа резюме
+        from app.services.resume_analysis_service import get_resume_analysis_service
+        
+        # Получаем экземпляр сервиса
+        service = get_resume_analysis_service()
+        
+        # Вызываем функцию анализа
+        analysis_result = await service.analyze_resume(job_description, profile_text)
+        
+        return analysis_result
+            
+    except Exception as e:
+        print(f"❌ Ошибка при анализе профиля AI: {e}")
         return None
 
 async def analyze_resume_with_ai(resume_text: str, job_description: str) -> Optional[str]:

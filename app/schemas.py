@@ -242,3 +242,6 @@ class ResumeAnalyzeResponse(BaseModel):
     extended_info: ExtendedInfo
     resume_quality: ResumeQuality
     anti_manipulation: AntiManipulation
+
+class ApplicationCreate(BaseModel):
+    cover_letter: Optional[str] = None
