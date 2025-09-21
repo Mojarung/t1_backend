@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, EmailStr, field_validator
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, date
 from app.models import UserRole, VacancyStatus, InterviewStatus, ApplicationStatus, EmploymentType
 
@@ -41,6 +41,23 @@ class UserResponse(BaseModel):
     # Флаги для отслеживания взаимодействия с резюме
     resume_upload_seen: Optional[bool] = None
     resume_upload_skipped: Optional[bool] = None
+
+    @field_validator('programming_languages', 'other_competencies', mode='before')
+    @classmethod
+    def parse_string_to_list(cls, v):
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(',') if item.strip()]
+        return v
+    
+    @field_validator('foreign_languages', mode='before')
+    @classmethod
+    def parse_foreign_languages(cls, v):
+        if isinstance(v, str):
+            # Если это строка, пытаемся разделить по запятым
+            items = [item.strip() for item in v.split(',') if item.strip()]
+            # Преобразуем в список объектов с языком и уровнем
+            return [{"language": item, "level": "Не указан"} for item in items]
+        return v
 
     class Config:
         from_attributes = True
@@ -243,3 +260,36 @@ class ResumeAnalyzeResponse(BaseModel):
 
 class ApplicationCreate(BaseModel):
     cover_letter: Optional[str] = None
+
+class QAQuestion(BaseModel):
+    id: str
+    question: str
+    field: str  # Поле профиля, которое уточняется
+    required: bool = False
+    max_attempts: int = 3
+    current_attempt: int = 0
+
+class QAAnswer(BaseModel):
+    question_id: str
+    answer: str
+    attempt: int
+
+class QASessionCreate(BaseModel):
+    user_id: int
+
+class QASessionResponse(BaseModel):
+    id: int
+    user_id: int
+    status: str
+    current_question_index: int
+    questions: Optional[List[QAQuestion]] = None
+    answers: Optional[List[QAAnswer]] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class QASessionUpdate(BaseModel):
+    answer: str
+    skip: bool = False

@@ -72,6 +72,8 @@ async def analyze_and_fill_profile(user_id: int, file_path: str, db: Session):
             return
         
         print(f"✅ AI проанализировал резюме: {profile_data}")
+        print(f"🔍 Skills section: {profile_data.get('skills', {})}")
+        print(f"🔍 Other competencies: {profile_data.get('skills', {}).get('other_competencies', [])}")
         
         # 3. Обновляем профиль пользователя
         await update_user_profile(user_id, profile_data, db)
@@ -133,9 +135,9 @@ async def analyze_resume_with_ai(resume_text: str) -> Optional[Dict[str, Any]]:
                 "desired_salary": profile_data.get("professional_info", {}).get("desired_salary"),
                 "employment_type": profile_data.get("professional_info", {}).get("employment_type"),
                 "ready_to_relocate": profile_data.get("professional_info", {}).get("ready_to_relocate"),
-                "programming_languages": profile_data.get("programming_languages", []),
-                "foreign_languages": profile_data.get("foreign_languages", []),
-                "other_competencies": profile_data.get("other_competencies", []),
+                "programming_languages": profile_data.get("skills", {}).get("programming_languages", []),
+                "foreign_languages": profile_data.get("skills", {}).get("foreign_languages", []),
+                "other_competencies": profile_data.get("skills", {}).get("other_competencies", []),
                 "work_experience": profile_data.get("experience", []),
                 "education": profile_data.get("education", [])
             }
@@ -194,12 +196,15 @@ async def update_user_profile(user_id: int, profile_data: Dict[str, Any], db: Se
         
         # Обновляем JSON поля
         if profile_data.get("programming_languages"):
+            print(f"🔧 Setting programming_languages: {profile_data['programming_languages']}")
             user.programming_languages = profile_data["programming_languages"]
         
         if profile_data.get("foreign_languages"):
+            print(f"🔧 Setting foreign_languages: {profile_data['foreign_languages']}")
             user.foreign_languages = profile_data["foreign_languages"]
         
         if profile_data.get("other_competencies"):
+            print(f"🔧 Setting other_competencies: {profile_data['other_competencies']}")
             user.other_competencies = profile_data["other_competencies"]
         
         if profile_data.get("education"):

@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Enum, Float, Date
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import mapped_column, relationship
-from pgvector.sqlalchemy import Vector
+from sqlalchemy.orm import relationship
 from datetime import datetime, date
 import enum
 
@@ -204,11 +203,17 @@ class WorkExperience(Base):
     
     user = relationship("User")
 
-class Vec_profile(Base):
-    __tablename__ = "vec_profiles"
-
+class QASession(Base):
+    __tablename__ = "qa_sessions"
+    
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    vector = mapped_column(Vector(1024))
+    status = Column(String, default="active")  # active, completed, skipped
+    current_question_index = Column(Integer, default=0)
+    questions = Column(JSON)  # Список вопросов
+    answers = Column(JSON)  # Ответы пользователя
+    profile_updates = Column(JSON)  # Обновления профиля на основе ответов
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     user = relationship("User")
