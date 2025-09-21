@@ -62,11 +62,12 @@ class RoadmapService:
         profile_text = ". ".join(parts)
 
         schema_hint = (
-            "Сгенерируй игровой роадмап развития кандидата в формате JSON. "
+            "Сгенерируй игровое дерево развития кандидата в формате JSON. "
             "Граф должен содержать вершины (nodes) и ребра (edges), поддерживать ветвления и различные статусы. "
-            "Допускай типы узлов: main, branch, optional. Для каждого узла укажи: id (int), title, description, status in ['locked','available','in_progress','completed'], type, xp_reward (int). "
+            "Допускай типы(type) узлов: main, branch, optional. Для каждого узла укажи: id (int), title, description, status in ['locked','available','in_progress','completed'], type, xp_reward (int). "
             "Для ребер укажи: from (int), to (int), condition (строка условия, например 'completion_of_<id>' или 'choose_backend_path'). "
-            "Учти текущий профиль и предложи 2-3 возможных ветки развития от текущего уровня." 
+            "Учти текущий профиль и предложи 2-3 возможных ветки развития от текущего уровня."
+            "В качестве узла может быть прохождение курса, изучение технологии, прохождение карьерной консультации например и тд" 
             "Ответь ТОЛЬКО валидным JSON, без пояснений."
         )
 
