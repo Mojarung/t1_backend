@@ -381,3 +381,149 @@ class XPUpdateResponse(BaseModel):
     new_xp: int
     xp_gained: int
     completion_percentage: float
+
+# AI Assistant Schemas - Схемы для чата с AI-ассистентом
+
+class ChatSessionCreate(BaseModel):
+    """Создание новой сессии чата с ассистентом"""
+    title: Optional[str] = "Новый чат с ассистентом"
+
+class ChatSessionResponse(BaseModel):
+    """Информация о сессии чата"""
+    id: int
+    user_id: int  
+    title: str
+    status: str
+    context_data: Optional[Dict[str, Any]] = None
+    last_activity_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    messages_count: Optional[int] = 0  # Количество сообщений в сессии
+
+    class Config:
+        from_attributes = True
+
+class ChatMessageCreate(BaseModel):
+    """Отправка сообщения в чат"""
+    session_id: int
+    content: str
+    # role автоматически устанавливается как 'user' при создании
+
+class ChatMessageResponse(BaseModel):
+    """Сообщение в чате"""
+    id: int
+    session_id: int
+    role: str  # user, assistant, system
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AssistantChatRequest(BaseModel):
+    """
+    Основной запрос к AI-ассистенту.
+    Используется для отправки сообщения и получения ответа с рекомендациями.
+    """
+    message: str  # Сообщение пользователя
+    session_id: Optional[int] = None  # ID существующей сессии (если None - создается новая)
+    context: Optional[Dict[str, Any]] = None  # Дополнительный контекст
+
+class AssistantChatResponse(BaseModel):
+    """
+    Ответ AI-ассистента с рекомендациями и дополнительными данными
+    """
+    session_id: int  # ID сессии чата
+    message_id: int  # ID сообщения ассистента
+    response: str  # Текстовый ответ ассистента
+    
+    # Дополнительные данные ответа
+    recommendations: Optional[List["RecommendationResponse"]] = []  # Рекомендации курсов/вакансий
+    actions: Optional[List[Dict[str, Any]]] = []  # Предлагаемые действия
+    quick_replies: Optional[List[str]] = []  # Быстрые ответы
+    
+    # Метаинформация
+    response_type: str = "general"  # general, career_guidance, course_recommendation, etc.
+    confidence: Optional[float] = None  # Уверенность в ответе (0.0-1.0)
+
+class CourseResponse(BaseModel):
+    """Информация о курсе"""
+    id: int
+    title: str
+    category: str
+    description: Optional[str] = None
+    skills: Optional[List[str]] = []
+    technologies: Optional[List[str]] = []
+    level: Optional[str] = None
+    duration_hours: Optional[int] = None
+    search_keywords: Optional[List[str]] = []
+
+    class Config:
+        from_attributes = True
+
+class RecommendationResponse(BaseModel):
+    """Рекомендация от AI-ассистента"""
+    id: int
+    recommendation_type: str  # course, vacancy, skill, action
+    title: str
+    description: Optional[str] = None
+    recommendation_data: Dict[str, Any]  # Детальные данные рекомендации
+    status: str
+    priority: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CourseRecommendationRequest(BaseModel):
+    """
+    Запрос рекомендаций курсов на основе профиля пользователя.
+    Специальный эндпоинт для получения персонализированных рекомендаций.
+    """
+    goal: Optional[str] = None  # Цель развития (например, "стать Senior Python Developer")  
+    current_skills: Optional[List[str]] = []  # Текущие навыки
+    preferred_level: Optional[str] = None  # junior, middle, senior
+    max_recommendations: Optional[int] = 5
+
+class CourseRecommendationResponse(BaseModel):
+    """Ответ с рекомендованными курсами"""
+    courses: List[CourseResponse]
+    explanation: str  # Объяснение выбора курсов
+    learning_path: Optional[List[str]] = []  # Рекомендуемый порядок изучения
+    estimated_time: Optional[str] = None  # Примерное время на изучение
+
+class CareerGuidanceRequest(BaseModel):
+    """
+    Запрос карьерного совета.
+    Специальный эндпоинт для вопросов о карьерном росте.
+    """
+    question: str  # Вопрос пользователя
+    current_position: Optional[str] = None  # Текущая позиция
+    target_position: Optional[str] = None  # Желаемая позиция
+    session_id: Optional[int] = None
+
+class CareerGuidanceResponse(BaseModel):
+    """Ответ с карьерным советом"""
+    advice: str  # Основной совет
+    action_plan: List[str]  # Пошаговый план действий
+    courses: List[CourseResponse]  # Рекомендуемые курсы
+    profile_completeness: Optional[float] = None  # Процент заполненности профиля
+    missing_profile_fields: Optional[List[str]] = []  # Незаполненные поля профиля
+    
+class VacancyRecommendationResponse(BaseModel):
+    """Рекомендация подходящих вакансий"""
+    vacancy_id: int
+    title: str
+    company: Optional[str] = None
+    match_percentage: float  # Процент соответствия (0.0-100.0)
+    match_explanation: str  # Объяснение соответствия
+    missing_skills: Optional[List[str]] = []  # Навыки, которых не хватает
+
+class AssistantStatsResponse(BaseModel):
+    """Статистика работы ассистента для пользователя"""
+    total_sessions: int
+    total_messages: int
+    recommendations_given: int
+    recommendations_completed: int
+    favorite_topics: Optional[List[str]] = []  # Самые частые темы вопросов
