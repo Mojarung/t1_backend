@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.models import User, DevelopmentRoadmap
 from app.services.xp_service import xp_service
-import httpx
+from openai import OpenAI
 import json
 from app.config import settings
 
@@ -88,23 +88,16 @@ class RoadmapService:
         )
 
     async def _call_llm(self, prompt: str) -> Dict[str, Any]:
-        url = f"{settings.scibox_base_url.rstrip('/')}/chat/completions"
-        headers = {"Authorization": f"Bearer {settings.scibox_api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": settings.scibox_model or "Qwen2.5-72B-Instruct-AWQ",
-            "messages": [
+        client = OpenAI(api_key=settings.scibox_api_key, base_url=settings.scibox_base_url)
+        resp = client.chat.completions.create(
+            model=settings.scibox_model or "Qwen2.5-72B-Instruct-AWQ",
+            messages=[
                 {"role": "system", "content": "Ты карьерный консультант и геймдизайнер прогресс-деревьев."},
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.3,
-            "max_tokens": 1200,
-        }
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+            response_format={"type": "json_object"},
+        )
+        text = resp.choices[0].message.content
 
         # Извлечь чистый JSON
         try:
