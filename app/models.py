@@ -63,7 +63,6 @@ class User(Base):
     ready_to_relocate = Column(Boolean, default=False)  # Готов к переезду
     employment_type = Column(Enum(EmploymentType))  # Тип занятости
     education = Column(JSON)  # Образование (массив объектов)
-    skills = Column(JSON)  # Навыки (массив строк)
     work_experience = Column(JSON)  # Опыт работы (массив объектов)
     
     # Новые поля для профиля
