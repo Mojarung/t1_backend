@@ -75,6 +75,8 @@ class User(Base):
     resume_upload_seen = Column(Boolean, default=False)  # Видел страницу загрузки резюме
     resume_upload_skipped = Column(Boolean, default=False)  # Пропустил загрузку резюме
     
+    xp = Column(Integer, default=0)
+    
     vacancies = relationship("Vacancy", back_populates="creator")
     resumes = relationship("Resume", back_populates="user")
 
