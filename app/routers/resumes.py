@@ -231,84 +231,100 @@ async def start_ai_interview_for_resume(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Запускает AI-интервью для дозаполнения резюме пользователя
+    Запускает AI-интервью для дозаполнения профиля пользователя
     """
-    # Проверяем, что резюме принадлежит пользователю
-    resume = db.query(Resume).filter(
-        Resume.id == resume_id,
-        Resume.user_id == current_user.id
-    ).first()
+    # Если resume_id = 0, работаем только с данными профиля
+    resume = None
+    resume_analysis = None
     
-    if not resume:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Резюме не найдено"
-        )
-    
-    # Получаем анализ резюме
-    resume_analysis = db.query(ResumeAnalysis).filter(
-        ResumeAnalysis.resume_id == resume_id
-    ).first()
-    
-    # Анализируем пробелы в резюме
+    if resume_id > 0:
+        # Проверяем, что резюме принадлежит пользователю
+        resume = db.query(Resume).filter(
+            Resume.id == resume_id,
+            Resume.user_id == current_user.id
+        ).first()
+
+        if not resume:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Резюме не найдено"
+            )
+
+        # Получаем анализ резюме
+        resume_analysis = db.query(ResumeAnalysis).filter(
+            ResumeAnalysis.resume_id == resume_id
+        ).first()
+
+    # Анализируем пробелы в профиле (с учетом резюме, если есть)
     gap_service = get_resume_gap_analysis_service()
     gaps_analysis = await gap_service.analyze_resume_gaps(current_user, resume_analysis)
-    
+
     # Проверяем, есть ли пробелы для заполнения
     missing_required_fields = gaps_analysis.get('missing_required_fields', [])
     if not missing_required_fields and not any(
-        gaps_analysis.get('gaps_analysis', {}).get(category, {}).get('missing_fields') or 
+        gaps_analysis.get('gaps_analysis', {}).get(category, {}).get('missing_fields') or
         gaps_analysis.get('gaps_analysis', {}).get(category, {}).get('incomplete_fields')
         for category in ['personal_info', 'professional_experience', 'skills', 'education']
     ):
         return {
-            "message": "Резюме уже содержит достаточно информации",
-            "suggested_actions": ["Просмотрите и отредактируйте резюме вручную", "Подайте заявку на вакансию"],
+            "message": "Профиль уже содержит достаточно информации",
+            "suggested_actions": ["Просмотрите и отредактируйте профиль вручную", "Подайте заявку на вакансию"],
             "gaps_analysis": gaps_analysis
         }
-    
+
     # Генерируем вопросы для интервью
     interview_questions = await gap_service.generate_interview_questions(gaps_analysis, current_user)
-    
+
     # Создаем интервью в базе данных
     from app.models import Interview, InterviewStatus
     from datetime import datetime
-    
+
     interview = Interview(
-        vacancy_id=resume.vacancy_id,
-        resume_id=resume_id,
+        vacancy_id=resume.vacancy_id if resume else None,
+        resume_id=resume_id if resume_id > 0 else None,
         status=InterviewStatus.NOT_STARTED,
         scheduled_date=datetime.utcnow(),
-        notes=f"AI-интервью для дозаполнения резюме. Пробелы: {missing_required_fields}"
+        notes=f"AI-интервью для дозаполнения профиля. Пробелы: {missing_required_fields}"
     )
-    
+
     db.add(interview)
     db.commit()
     db.refresh(interview)
-    
+
     # Подготавливаем данные для AI аватара
     interview_context = {
         "interview_type": "resume_completion",
         "user_profile": {
             "id": current_user.id,
             "name": f"{current_user.first_name or ''} {current_user.last_name or ''}".strip(),
-            "email": current_user.email
+            "email": current_user.email,
+            "phone": current_user.phone,
+            "location": current_user.location,
+            "about": current_user.about,
+            "desired_salary": current_user.desired_salary,
+            "ready_to_relocate": current_user.ready_to_relocate,
+            "employment_type": current_user.employment_type.value if current_user.employment_type else None,
+            "education": current_user.education,
+            "work_experience": current_user.work_experience,
+            "programming_languages": current_user.programming_languages,
+            "foreign_languages": current_user.foreign_languages,
+            "other_competencies": current_user.other_competencies
         },
         "resume_data": {
-            "id": resume.id,
-            "filename": resume.original_filename,
+            "id": resume.id if resume else None,
+            "filename": resume.original_filename if resume else None,
             "analysis": resume_analysis.model_dump() if resume_analysis else None
         },
         "gaps_analysis": gaps_analysis,
         "interview_questions": interview_questions,
         "estimated_duration": gaps_analysis.get("interview_plan", {}).get("estimated_duration_minutes", 15)
     }
-    
+
     try:
         # Запускаем AI аватар сервис
         from app.routers.ai_resume_interview import start_avatar_interview
         avatar_response = await start_avatar_interview(interview.id, interview_context)
-        
+
         return {
             "interview_id": interview.id,
             "avatar_room_url": avatar_response["url"],
@@ -318,13 +334,13 @@ async def start_ai_interview_for_resume(
             "gaps_analysis": gaps_analysis,
             "missing_required_fields": missing_required_fields
         }
-        
+
     except Exception as e:
         # Если не удалось запустить аватар, обновляем статус интервью
         interview.status = InterviewStatus.COMPLETED
         interview.summary = f"Ошибка запуска AI-интервью: {str(e)}"
         db.commit()
-        
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось запустить AI-интервью: {str(e)}"
