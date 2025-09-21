@@ -12,8 +12,8 @@ def load_jwt_token() -> Optional[str]:
     """
     Загружает JWT токен из переменной окружения или возвращает тестовый токен.
     Для получения токена нужно авторизоваться через /auth/login
-    """
-    token = os.getenv('JWT_TOKEN')
+    ""sd"
+    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdHJpbmciLsdCJleHAiOjE3NTg0NDEyMjd9.Xs28sKBJRv86_dw1tJmudBg-A2Q2dp5-xSIKOCOLhBQ"
     if not token:
         print("⚠️  JWT_TOKEN не найден в переменных окружения")
         print("💡 Для тестирования сначала авторизуйтесь:")

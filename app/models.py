@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Foreign
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import mapped_column, relationship
 from datetime import datetime, date
+from sqlalchemy.orm import mapped_column
+from pgvector.sqlalchemy import Vector
 import enum
 from pgvector.sqlalchemy import Vector
 
@@ -201,6 +203,15 @@ class WorkExperience(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User")
+
+class Vec_profile(Base):
+    __tablename__ = "vec_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    vector = mapped_column(Vector(1024))
     
     user = relationship("User")
 
