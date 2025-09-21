@@ -247,3 +247,100 @@ class DevelopmentRoadmap(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User")
+
+class ChatSession(Base):
+    """
+    Сессии чата пользователя с AI-ассистентом.
+    Каждая сессия содержит историю сообщений и контекст для персонализации.
+    """
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String, default="Новый чат")  # Заголовок чата для отображения
+    status = Column(String, default="active")  # active, completed, archived
+    
+    # Контекст для персонализированных ответов
+    context_data = Column(JSON)  # Сохраненный контекст (навыки, цели, предпочтения)
+    last_activity_at = Column(DateTime, default=datetime.utcnow)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+class ChatMessage(Base):
+    """
+    Отдельные сообщения в чате с AI-ассистентом.
+    Хранит как сообщения пользователя, так и ответы ассистента.
+    """
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False)
+    
+    # Тип сообщения: user (от пользователя), assistant (от AI), system (системное)
+    role = Column(String, nullable=False)  # user, assistant, system
+    content = Column(Text, nullable=False)  # Содержание сообщения
+    
+    # Дополнительные данные для ассистента
+    message_metadata = Column(JSON)  # Дополнительная информация (рекомендации, ссылки, действия)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("ChatSession", back_populates="messages")
+
+class AssistantRecommendation(Base):
+    """
+    Рекомендации AI-ассистента пользователю.
+    Хранит специфические рекомендации: курсы, вакансии, действия.
+    """
+    __tablename__ = "assistant_recommendations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=True)
+    
+    # Тип рекомендации: course, vacancy, skill, action
+    recommendation_type = Column(String, nullable=False)
+    title = Column(String, nullable=False)  # Название рекомендации
+    description = Column(Text)  # Описание рекомендации
+    
+    # Данные рекомендации (курс, вакансия, навык, действие)
+    recommendation_data = Column(JSON, nullable=False)
+    
+    # Статус выполнения: pending, in_progress, completed, dismissed
+    status = Column(String, default="pending")
+    priority = Column(Integer, default=0)  # Приоритет (чем выше, тем важнее)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+    session = relationship("ChatSession")
+
+class Course(Base):
+    """
+    База данных курсов для рекомендаций AI-ассистентом.
+    Загружается из bd_course.txt и используется для персонализированных советов.
+    """
+    __tablename__ = "courses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)  # Название курса
+    category = Column(String, nullable=False)  # Категория (Backend Development, Frontend, etc.)
+    description = Column(Text)  # Описание курса
+    
+    # Навыки, которые развивает курс
+    skills = Column(JSON)  # Массив навыков, которые дает курс
+    technologies = Column(JSON)  # Технологии, которые изучаются
+    level = Column(String)  # junior, middle, senior, all
+    duration_hours = Column(Integer)  # Длительность в часах
+    
+    # SEO и поиск
+    search_keywords = Column(JSON)  # Ключевые слова для поиска
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

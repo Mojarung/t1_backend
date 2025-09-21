@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.models import User, DevelopmentRoadmap
 from app.services.xp_service import xp_service
-import httpx
+from openai import OpenAI
 import json
 from app.config import settings
 
@@ -62,11 +62,12 @@ class RoadmapService:
         profile_text = ". ".join(parts)
 
         schema_hint = (
-            "Сгенерируй игровой роадмап развития кандидата в формате JSON. "
+            "Сгенерируй игровое дерево развития кандидата в формате JSON. "
             "Граф должен содержать вершины (nodes) и ребра (edges), поддерживать ветвления и различные статусы. "
-            "Допускай типы узлов: main, branch, optional. Для каждого узла укажи: id (int), title, description, status in ['locked','available','in_progress','completed'], type, xp_reward (int). "
+            "Допускай типы(type) узлов: main, branch, optional. Для каждого узла укажи: id (int), title, description, status in ['locked','available','in_progress','completed'], type, xp_reward (int). "
             "Для ребер укажи: from (int), to (int), condition (строка условия, например 'completion_of_<id>' или 'choose_backend_path'). "
-            "Учти текущий профиль и предложи 2-3 возможных ветки развития от текущего уровня." 
+            "Учти текущий профиль и предложи 2-3 возможных ветки развития от текущего уровня."
+            "В качестве узла может быть прохождение курса, изучение технологии, прохождение карьерной консультации например и тд" 
             "Ответь ТОЛЬКО валидным JSON, без пояснений."
         )
 
@@ -87,23 +88,16 @@ class RoadmapService:
         )
 
     async def _call_llm(self, prompt: str) -> Dict[str, Any]:
-        url = f"{settings.scibox_base_url.rstrip('/')}/chat/completions"
-        headers = {"Authorization": f"Bearer {settings.scibox_api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": settings.scibox_model or "Qwen2.5-72B-Instruct-AWQ",
-            "messages": [
+        client = OpenAI(api_key=settings.scibox_api_key, base_url=settings.scibox_base_url)
+        resp = client.chat.completions.create(
+            model=settings.scibox_model or "Qwen2.5-72B-Instruct-AWQ",
+            messages=[
                 {"role": "system", "content": "Ты карьерный консультант и геймдизайнер прогресс-деревьев."},
                 {"role": "user", "content": prompt},
             ],
-            "temperature": 0.3,
-            "max_tokens": 1200,
-        }
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+            response_format={"type": "json_object"},
+        )
+        text = resp.choices[0].message.content
 
         # Извлечь чистый JSON
         try:

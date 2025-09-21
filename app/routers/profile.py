@@ -395,13 +395,25 @@ async def recalculate_user_xp(
             detail=f"Ошибка при пересчете XP: {str(e)}"
         )
 
-'''@router.post("/roadmap/generate")
+@router.post("/roadmap/generate")
 async def generate_development_roadmap(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Генерация игровой карты развития (роадмапа) на основе профиля. Требуется заполненность 60%+."""
     try:
+        # Явная проверка заполненности профиля до вызова LLM
+        xp_info = xp_service.calculate_user_xp(current_user)
+        if xp_info.get("completion_percentage", 0) < 60:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Профиль недостаточно заполнен для генерации роадмапа",
+                    "completion_percentage": xp_info.get("completion_percentage", 0),
+                    "required": 60
+                }
+            )
+
         service = get_roadmap_service()
         roadmap = await service.generate_for_user(db, current_user)
         return {"roadmap": roadmap}
@@ -420,4 +432,4 @@ async def get_development_roadmap(
     roadmap = service.get_for_user(db, current_user)
     if not roadmap:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Роадмап не найден. Сгенерируйте его сначала.")
-    return {"roadmap": roadmap}'''
+    return {"roadmap": roadmap}
