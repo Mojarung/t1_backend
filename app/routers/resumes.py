@@ -225,39 +225,20 @@ def download_resume(
     )
 
 @router.post("/{resume_id}/start-ai-interview")
-async def start_ai_interview_for_resume(
+async def start_ai_interview_for_profile(
     resume_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Запускает AI-интервью для дозаполнения профиля пользователя
+    Запускает AI-интервью для дозаполнения профиля пользователя на основе данных из БД
     """
-    # Если resume_id = 0, работаем только с данными профиля
-    resume = None
-    resume_analysis = None
-    
-    if resume_id > 0:
-        # Проверяем, что резюме принадлежит пользователю
-        resume = db.query(Resume).filter(
-            Resume.id == resume_id,
-            Resume.user_id == current_user.id
-        ).first()
+    # Работаем ТОЛЬКО с данными профиля из базы данных
+    # resume_id игнорируется, все данные берутся из current_user
 
-        if not resume:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Резюме не найдено"
-            )
-
-        # Получаем анализ резюме
-        resume_analysis = db.query(ResumeAnalysis).filter(
-            ResumeAnalysis.resume_id == resume_id
-        ).first()
-
-    # Анализируем пробелы в профиле (с учетом резюме, если есть)
+    # Анализируем пробелы в профиле пользователя
     gap_service = get_resume_gap_analysis_service()
-    gaps_analysis = await gap_service.analyze_resume_gaps(current_user, resume_analysis)
+    gaps_analysis = await gap_service.analyze_resume_gaps(current_user, None)  # Без анализа резюме
 
     # Проверяем, есть ли пробелы для заполнения
     missing_required_fields = gaps_analysis.get('missing_required_fields', [])
@@ -280,8 +261,8 @@ async def start_ai_interview_for_resume(
     from datetime import datetime
 
     interview = Interview(
-        vacancy_id=resume.vacancy_id if resume else None,
-        resume_id=resume_id if resume_id > 0 else None,
+        vacancy_id=None,  # Интервью не привязано к вакансии
+        resume_id=None,   # Интервью не привязано к резюме
         status=InterviewStatus.NOT_STARTED,
         scheduled_date=datetime.utcnow(),
         notes=f"AI-интервью для дозаполнения профиля. Пробелы: {missing_required_fields}"
@@ -291,7 +272,7 @@ async def start_ai_interview_for_resume(
     db.commit()
     db.refresh(interview)
 
-    # Подготавливаем данные для AI аватара
+    # Подготавливаем данные для AI аватара ТОЛЬКО из профиля пользователя
     interview_context = {
         "interview_type": "resume_completion",
         "user_profile": {
@@ -310,11 +291,7 @@ async def start_ai_interview_for_resume(
             "foreign_languages": current_user.foreign_languages,
             "other_competencies": current_user.other_competencies
         },
-        "resume_data": {
-            "id": resume.id if resume else None,
-            "filename": resume.original_filename if resume else None,
-            "analysis": resume_analysis.model_dump() if resume_analysis else None
-        },
+        "resume_data": None,  # Не используем данные резюме
         "gaps_analysis": gaps_analysis,
         "interview_questions": interview_questions,
         "estimated_duration": gaps_analysis.get("interview_plan", {}).get("estimated_duration_minutes", 15)

@@ -285,7 +285,7 @@ class ChatMessage(Base):
     content = Column(Text, nullable=False)  # Содержание сообщения
     
     # Дополнительные данные для ассистента
-    metadata = Column(JSON)  # Дополнительная информация (рекомендации, ссылки, действия)
+    message_metadata = Column(JSON)  # Дополнительная информация (рекомендации, ссылки, действия)
     
     created_at = Column(DateTime, default=datetime.utcnow)
 
