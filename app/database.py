@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
 from app.config import settings
+from app.logging_config import logger
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -22,6 +23,7 @@ def _build_database_url() -> str:
             f"postgresql://{settings.database_user}:{encoded_password}"
             f"@{settings.database_host}/{settings.database_name}"
         )
+        logger.info("no url")
 
     # Нормализуем схему для SQLAlchemy 2.0 (Heroku выдает postgres://)
     if url.startswith("postgres://"):
@@ -32,6 +34,7 @@ def _build_database_url() -> str:
 
     # Для Heroku требуется SSL. Либо задаем параметр sslmode=require в connect_args,
     # либо добавляем в строку подключения. Используем connect_args ниже.
+    logger.info(f"DATABASE_URL: {url}")
     return url
 
 

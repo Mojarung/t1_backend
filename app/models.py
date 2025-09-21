@@ -1,8 +1,9 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Enum, Float, Date
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import mapped_column, relationship
 from datetime import datetime, date
 import enum
+from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
 
@@ -216,4 +217,14 @@ class QASession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    user = relationship("User")
+
+class Vec_profile(Base):
+    __tablename__ = "vec_profiles"
+
+    vector = mapped_column(Vector(1024))
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     user = relationship("User")
