@@ -32,7 +32,8 @@ app.add_middleware(
         "http://127.0.0.1", # Localhost testing
         "https://moretech-backend-80a7fa1a3fab.herokuapp.com", # Backend production (for Swagger UI if needed)
         "https://moretech-avatar-dd041c6ae94a.herokuapp.com",
-        "https://api.aws.us-east-1.cerebrium.ai/v4/p-d3989137/ai-avatar-service/interview/"
+        "https://api.aws.us-east-1.cerebrium.ai/v4/p-d3989137/ai-avatar-service/interview/",
+        "https://t1-frontend-0e7ff7a1a18a.herokuapp.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
