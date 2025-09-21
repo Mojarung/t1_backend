@@ -261,6 +261,7 @@ class ResumeAnalyzeResponse(BaseModel):
 class ApplicationCreate(BaseModel):
     cover_letter: Optional[str] = None
 
+# QA Session Schemas - Схемы для вопросно-ответных сессий
 class QAQuestion(BaseModel):
     id: str
     question: str
@@ -293,3 +294,45 @@ class QASessionResponse(BaseModel):
 class QASessionUpdate(BaseModel):
     answer: str
     skip: bool = False
+
+# AI HR Candidate Search Schemas - Новые схемы для поиска кандидатов через AI
+class CandidateSearchRequest(BaseModel):
+    """
+    Схема запроса для поиска кандидатов через AI-ассистента.
+    HR отправляет описание вакансии и получает ранжированный список кандидатов.
+    """
+    job_title: str  # Название должности
+    job_description: str  # Полное описание вакансии 
+    required_skills: Optional[List[str]] = []  # Обязательные навыки для первичной фильтрации
+    additional_requirements: Optional[str] = None  # Дополнительные требования в свободной форме
+    experience_level: Optional[str] = None  # Уровень опыта (junior, middle, senior)
+    max_candidates: Optional[int] = 20  # Максимальное количество кандидатов для обработки через LLM
+    threshold_filter_limit: Optional[int] = 50  # Пороговое значение для дополнительной фильтрации
+
+class CandidateMatch(BaseModel):
+    """
+    Информация о найденном кандидате с оценкой соответствия
+    """
+    user_id: int  # ID пользователя
+    full_name: str  # Полное имя кандидата
+    email: str  # Email кандидата  
+    current_position: Optional[str] = None  # Текущая позиция
+    experience_years: Optional[str] = None  # Опыт работы
+    key_skills: Optional[List[str]] = []  # Ключевые навыки
+    programming_languages: Optional[List[str]] = []  # Языки программирования
+    match_score: float  # Оценка соответствия (0.0 - 1.0)
+    ai_summary: str  # AI-саммари: почему подходит/не подходит
+    strengths: Optional[List[str]] = []  # Сильные стороны кандидата
+    growth_areas: Optional[List[str]] = []  # Области для роста
+    similarity_score: Optional[float] = None  # Векторная схожесть профиля с вакансией
+
+class CandidateSearchResponse(BaseModel):
+    """
+    Результат поиска кандидатов
+    """
+    job_title: str  # Название вакансии 
+    total_profiles_found: int  # Общее количество найденных профилей после фильтрации
+    processed_by_ai: int  # Количество профилей, обработанных через AI
+    filters_applied: List[str]  # Примененные фильтры
+    candidates: List[CandidateMatch]  # Список кандидатов, отсортированный по релевантности
+    processing_time_seconds: Optional[float] = None  # Время обработки запроса
