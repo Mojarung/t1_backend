@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, vacancies, resumes, interviews, resume_analysis, analytics, applications, offers, candidate_selection, profile, ai_assistant, hr_ai_assistant, qa_session, ai_resume_interview
+from app.routers import auth, vacancies, resumes, interviews, resume_analysis, analytics, applications, offers, candidate_selection, profile, ai_assistant, hr_ai_assistant, qa_session
 from app.database import create_tables
 from app.logging_config import logger, log_startup, log_request
 import time
@@ -69,7 +69,6 @@ app.include_router(profile.router, prefix="/profile", tags=["profile"])
 app.include_router(ai_assistant.router, prefix="/ai-assistant", tags=["ai-assistant"])
 app.include_router(hr_ai_assistant.router, prefix="/hr-ai-assistant", tags=["hr-ai-assistant"])
 app.include_router(qa_session.router, prefix="/qa", tags=["qa-session"])
-app.include_router(ai_resume_interview.router, prefix="/ai-resume-interview", tags=["ai-resume-interview"])
 @app.on_event("startup")
 async def startup_event():
     try:
