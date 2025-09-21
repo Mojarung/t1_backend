@@ -498,12 +498,6 @@ def format_user_profile_for_analysis(user: User) -> str:
     profile_parts.append(f"Тип занятости: {user.employment_type.value if user.employment_type else 'Не указан'}")
     profile_parts.append(f"Готов к переезду: {'Да' if user.ready_to_relocate else 'Нет'}")
     
-    # Навыки
-    if user.skills:
-        profile_parts.append(f"\n=== НАВЫКИ ===")
-        for skill in user.skills:
-            profile_parts.append(f"• {skill}")
-    
     if user.programming_languages:
         profile_parts.append(f"\n=== ЯЗЫКИ ПРОГРАММИРОВАНИЯ ===")
         for lang in user.programming_languages:

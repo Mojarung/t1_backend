@@ -113,7 +113,7 @@ async def select_best_candidates(
                 "resume_id": interview.resume_id,
                 "interview_id": interview.id,
                 "interview_summary": interview.summary,
-                "candidate_skills": getattr(candidate, 'skills', []) or [],
+                "candidate_skills": [],
                 "candidate_experience": getattr(candidate, 'work_experience', []) or [],
                 "candidate_education": getattr(candidate, 'education', []) or []
             }

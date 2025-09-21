@@ -33,7 +33,6 @@ class UserResponse(BaseModel):
     ready_to_relocate: Optional[bool] = None
     employment_type: Optional[EmploymentType] = None
     education: Optional[List[Dict[str, Any]]] = None
-    skills: Optional[List[str]] = None
     work_experience: Optional[List[Dict[str, Any]]] = None
     # Новые поля для профиля
     foreign_languages: Optional[List[Dict[str, Any]]] = None
@@ -61,7 +60,6 @@ class UserProfileUpdate(BaseModel):
     ready_to_relocate: Optional[bool] = None
     employment_type: Optional[EmploymentType] = None
     education: Optional[List[Dict[str, Any]]] = None
-    skills: Optional[List[str]] = None
     work_experience: Optional[List[Dict[str, Any]]] = None
 
 class VacancyCreate(BaseModel):

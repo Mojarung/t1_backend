@@ -133,9 +133,9 @@ async def analyze_resume_with_ai(resume_text: str) -> Optional[Dict[str, Any]]:
                 "desired_salary": profile_data.get("professional_info", {}).get("desired_salary"),
                 "employment_type": profile_data.get("professional_info", {}).get("employment_type"),
                 "ready_to_relocate": profile_data.get("professional_info", {}).get("ready_to_relocate"),
-                "programming_languages": profile_data.get("skills", {}).get("programming_languages", []),
-                "foreign_languages": profile_data.get("skills", {}).get("foreign_languages", []),
-                "other_competencies": profile_data.get("skills", {}).get("other_competencies", []),
+                "programming_languages": profile_data.get("programming_languages", []),
+                "foreign_languages": profile_data.get("foreign_languages", []),
+                "other_competencies": profile_data.get("other_competencies", []),
                 "work_experience": profile_data.get("experience", []),
                 "education": profile_data.get("education", [])
             }
@@ -180,8 +180,13 @@ async def update_user_profile(user_id: int, profile_data: Dict[str, Any], db: Se
         if profile_data.get("employment_type"):
             from app.models import EmploymentType
             try:
-                user.employment_type = EmploymentType(profile_data["employment_type"])
+                # Если значение уже является enum, используем его напрямую
+                if isinstance(profile_data["employment_type"], EmploymentType):
+                    user.employment_type = profile_data["employment_type"]
+                else:
+                    user.employment_type = EmploymentType(profile_data["employment_type"])
             except ValueError:
+                print(f"Неверное значение employment_type: {profile_data['employment_type']}")
                 pass
         
         if profile_data.get("ready_to_relocate") is not None:
@@ -231,7 +236,6 @@ async def get_user_profile(
         "ready_to_relocate": current_user.ready_to_relocate,
         "employment_type": current_user.employment_type.value if current_user.employment_type else None,
         "education": current_user.education,
-        "skills": current_user.skills,
         "work_experience": current_user.work_experience,
         "foreign_languages": current_user.foreign_languages,
         "other_competencies": current_user.other_competencies,
@@ -247,15 +251,39 @@ async def update_user_profile_manual(
 ):
     """Ручное обновление профиля пользователя"""
     try:
-        # Обновляем только переданные поля
+        # Обновляем только переданные поля с проверкой типов
         for field, value in profile_data.items():
             if hasattr(current_user, field) and value is not None:
-                setattr(current_user, field, value)
+                # Специальная обработка для enum полей
+                if field == "employment_type" and isinstance(value, str):
+                    from app.models import EmploymentType
+                    try:
+                        setattr(current_user, field, EmploymentType(value))
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Неверное значение для employment_type: {value}"
+                        )
+                elif field == "birth_date" and isinstance(value, str):
+                    from datetime import datetime
+                    try:
+                        # Парсим дату из строки
+                        parsed_date = datetime.fromisoformat(value.replace('Z', '+00:00')).date()
+                        setattr(current_user, field, parsed_date)
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Неверный формат даты для birth_date: {value}"
+                        )
+                else:
+                    setattr(current_user, field, value)
         
         db.commit()
         
         return {"message": "Профиль успешно обновлен"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(
